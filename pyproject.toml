@@ -16,8 +16,9 @@ readme = "README.md"
 license = {text = "MIT"}
 
 dependencies = [
-  # 'dep1>=1.0,<2',
-  # 'dep2>=2'
+  "rich",
+  "structlog",
+  "typer",
 ]
 
 requires-python = ">=3.10"
