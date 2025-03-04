@@ -24,7 +24,7 @@ dependencies = [
 requires-python = ">=3.10"
 
 [project.scripts]
-app_pass = "app_pass.__main__:main"
+app-pass = "app_pass.__main__:main"
 
 
 [tool.black]
