@@ -1,0 +1,39 @@
+
+{% set pyproject = load_file_data('pyproject.toml') %}
+{% set pproject = pyproject.get('project', {}) %}
+{% set python_requirement = pproject.get('requires-python') %}
+
+package:
+  name: app_pass
+  version: {{ pproject.get('version') }}
+
+source:
+  path: ..
+
+build:
+  script: python -m pip install --no-deps --ignore-installed .
+
+requirements:
+  build:
+    - python
+    - pip
+  run:
+    # dependencies defined in pyproject.toml
+    - python{{ python_requirement }}
+    {% for dep in pproject.get('dependencies', []) %}
+    - {{ dep.lower() }}
+    {% endfor %}
+
+test:
+  imports:
+    - app_pass
+  source_files:
+    - tests
+  requires:
+    - pytest
+  commands:
+    - pytest tests
+
+about:
+  home: TODO
+  summary: Tool to ensure an .app bundle pass the Gatekeeper on MacOS.

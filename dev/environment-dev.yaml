@@ -1,0 +1,11 @@
+name: app_pass
+channels:
+  - conda-forge
+dependencies:
+  - python 3.10
+  - black
+  - pre_commit
+
+
+  - pytest
+
