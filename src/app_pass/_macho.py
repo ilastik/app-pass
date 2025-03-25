@@ -3,13 +3,22 @@ import subprocess
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
+from typing import Callable, Optional
 
-from ._util import run_logged
+from packaging import version
+
+from ._util import run_logged_act, run_logged_read
 
 _LIB_REGEX = re.compile(r"\t(?P<library>[@/]\S+\.(dylib|so))")
 _LOAD_DYLIB_REGEX = re.compile(r"\s*name (?P<dylib>.+) \(offset \d+\)$")
 _LOAD_RCPATH_REGEX = re.compile(r"\s*path (?P<rc_path>.+) \(offset \d+\)$")
 _LOAD_COMMAND_REGEX = re.compile(r"(Load command \d+.*?)(?=Load command \d+|$)", re.DOTALL)
+
+
+_VTOOL_OUT_PARSE_PLATFORM = re.compile(r"platform (?P<platform>.*)\n", re.IGNORECASE)
+_VTOOL_OUT_PARSE_MINOS = re.compile(r"minos (?P<minos>.*)\n", re.IGNORECASE)
+_VTOOL_OUT_PARSE_SDK = re.compile(r"sdk (?P<sdk>.*)\n", re.IGNORECASE)
+_VALID_VER = re.compile(r"\d+\..*", re.IGNORECASE)
 
 
 class DependencyNotFountInBundle(Exception):
@@ -80,23 +89,154 @@ class MachOHeader:
 
 
 @dataclass
+class Build:
+    platform: str
+    minos: str
+    sdk: str
+
+    @staticmethod
+    def from_vtool_output(vtool_str: str) -> "Build":
+        if m := _VTOOL_OUT_PARSE_PLATFORM.search(vtool_str):
+            platform = m.groupdict()["platform"].lower()
+        else:
+            platform = ""
+
+        if m := _VTOOL_OUT_PARSE_MINOS.search(vtool_str):
+            minos = m.groupdict()["minos"]
+        else:
+            minos = ""
+
+        if m := _VTOOL_OUT_PARSE_SDK.search(vtool_str):
+            sdk = m.groupdict()["sdk"]
+        else:
+            sdk = ""
+
+        return Build(platform=platform, minos=minos, sdk=sdk)
+
+
+    @property
+    def is_valid(self) -> bool:
+        if self.platform and _VALID_VER.match(self.minos) and _VALID_VER.match(self.sdk):
+            return True
+
+        return False
+
+    @property
+    def invalid_fields(self) -> dict[str, str]:
+        ret = {}
+        if not self.platform:
+            ret["platform"] = self.platform
+
+        if not self.sdk:
+            ret["sdk"] = self.sdk
+
+        if not self.minos:
+            ret["minos"] = self.minos
+
+        return ret
+
+    @property
+    def invalid_field_names(self) -> list[str]:
+        invalid_fields = self.invalid_fields
+        return list(invalid_fields.keys())
+
+    def valid_build(self, default_build: "Build", overwrite=False) -> "Build":
+        platform = self.platform
+        minos = self.minos
+        sdk = self.sdk
+
+        if overwrite:
+            return Build(
+                platform=default_build.platform or platform,
+                minos=default_build.minos or minos,
+                sdk=default_build.sdk or sdk,
+            )
+
+        if not _VALID_VER.match(sdk) and not _VALID_VER.match(minos):
+            assert _VALID_VER.match(default_build.sdk) and _VALID_VER.match(default_build.minos)
+            sdk = default_build.sdk
+            minos = default_build.minos
+
+        if not _VALID_VER.match(self.sdk):
+            if _VALID_VER.match(default_build.sdk):
+                sdk_version = version.parse(default_build.sdk)
+                # don't set sdk version lower than minos
+                minos_version = version.parse(minos)
+                sdk = default_build.sdk if sdk_version > minos_version else minos
+            else:
+                sdk = minos
+
+        if not _VALID_VER.match(minos):
+            if _VALID_VER.match(default_build.minos):
+                minos_version = version.parse(default_build.minos)
+                # don't set minos higher than sdk
+                sdk_version = version.parse(sdk)
+                minos = default_build.minos if minos_version < sdk_version else sdk
+            else:
+                minos = sdk
+
+        if not platform:
+            platform = default_build.platform
+
+        return Build(platform=platform, minos=minos, sdk=sdk)
+
+
+def vtool_read(path: Path) -> Build:
+    """
+    vtool -show-build  ilastik-1.4.1rc2-OSX.app/Contents/ilastik-release/lib/libxcb.1.dylib
+
+    ilastik-1.4.1rc2-OSX.app/Contents/ilastik-release/lib/libxcb.1.dylib:
+    Load command 16
+          cmd LC_BUILD_VERSION
+      cmdsize 24
+     platform MACOS
+        minos 10.9
+          sdk 10.9
+       ntools 0
+    """
+    return Build.from_vtool_output(
+        run_logged_read(["/usr/bin/vtool", "-show-build", str(path)])
+    )
+
+
+def vtool_overwrite(path: Path, build: Build, dry_run=True):
+    run_logged_act(
+        [
+            "/usr/bin/vtool",
+            "-set-build-version",
+            build.platform,
+            build.minos,
+            build.sdk,
+            "-replace",
+            "-output",
+            str(path),
+            str(path),
+        ],
+        dry_run=dry_run
+    )
+
+    return True
+
+
+@dataclass
 class MachOBinary:
     path: Path
     header: MachOHeader
     rc_paths: list[Path]
     dylibs: list[Path]
+    build: Optional[Build]
 
 
 def otool_l(path: Path) -> tuple[LoadCommand, ...]:
-    out = run_logged(["otool", "-l", str(path)])
+    out = run_logged_read(["otool", "-l", str(path)])
     cmds = tuple(LoadCommand.from_otool_output(x) for x in _LOAD_COMMAND_REGEX.findall(out))
     return cmds
 
 
 def otool_h(path: Path) -> MachOHeader:
     try:
-        out = run_logged(["otool", "-h", str(path)])
-    except subprocess.CalledProcessError as e:
+        out = run_logged_read(["otool", "-h", str(path)])
+    except subprocess.CalledProcessError:
         return False
     return MachOHeader.from_otool_output(out)
 
@@ -135,4 +275,11 @@ def parse_macho(some_path: Path):
     paths = rc_paths(cmds)
     libs = dylibs(cmds)
 
-    return MachOBinary(some_path, header, paths, libs)
+    # Found these to contain multiple architectures and binaries
+    # vtool (currently) doesn't seem to handle those.
+    # TODO: should warn
+    # if header.filetype == FILETYPE.fixed_VM_shared_library_file:
+    #     build = None
+    # else:
+    build = vtool_read(some_path)
+    return MachOBinary(some_path, header, paths, libs, build)
