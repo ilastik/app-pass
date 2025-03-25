@@ -1,10 +1,12 @@
 import logging
 from pathlib import Path
+from typing import Optional, Sequence
 
 import structlog
 import typer
 
 from app_pass._app import OSXAPP
+from app_pass._issues import Issue
 
 app = typer.Typer(name="app-pass", no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
 shared_options = {}
@@ -25,8 +27,11 @@ def _shared_flags(
     configure_logging(verbose)
 
 
+def print_summary(app: OSXAPP, issues: Sequence[Issue]):
+    print(f"Found {len(issues)} problems with {app.root} of which {len([issue for issue in issues if issue.fixable])} can be fixed.")
+
 @app.command()
-def check_app(root: Path):
+def check(root: Path):
     """Check if .app bundle is likely to pass MacOs Gatekeeper
 
     Check integrity of binaries:
@@ -37,6 +42,9 @@ def check_app(root: Path):
     Check all binaries are signed.
     """
     app = OSXAPP.from_path(root)
+    issues = app.check_binaries()
+    print_summary(app, issues)
+
     app.check_binaries()
 
     # print(f"{set(x.header.filetype for x in macho_binaries)=}, {set(x.header.magic for x in macho_binaries)=}")
@@ -44,12 +52,19 @@ def check_app(root: Path):
 
 
 @app.command()
-def fix():
+def fix(root: Path, dry_run: bool=False):
     """Fix issues in mach-o libraries .app bundle
 
     Remove paths that point outside the app.
     """
-    pass
+    app = OSXAPP.from_path(root)
+    issues = app.check_binaries()
+    print_summary(app, issues)
+    if dry_run:
+        return
+
+    for issue in issues:
+        issue.fix(dry_run=dry_run)
 
 
 @app.command()
