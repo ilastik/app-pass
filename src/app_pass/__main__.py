@@ -1,6 +1,8 @@
 import logging
+from contextlib import ExitStack
+from functools import partial
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import structlog
 import typer
@@ -11,22 +13,67 @@ from app_pass._app import OSXAPP
 from app_pass._issues import Issue
 
 app = typer.Typer(name="app-pass", no_args_is_help=True, add_completion=False, pretty_exceptions_enable=False)
-shared_options = {}
+shared_options: Dict[str, int | None | Path] = dict(verbose=0, json_cmd_out=None, sh_cmd_out=None)
+
+_PROCESSORS: List[Callable] = []
 
 
-def configure_logging(verbose: int):
+class SHLogger:
+    def __init__(self, filename: Path):
+        self._filename: Path = filename
+        self._handle = None
+
+    def __call__(self, _logger, _method_name, event_dict: dict):
+        if self._handle is None:
+            return event_dict
+        if event_dict.get("side_effect", None):
+            if cmd := event_dict.get("command", None):
+                self._handle.write(f"{cmd}\n")
+        return event_dict
+
+    def __enter__(self):
+        self._handle = self._filename.open("w")
+
+    def __exit__(self, *_):
+        if self._handle:
+            self._handle.close()
+
+
+def _drop_lvl(level, _logger, _method_name, event_dict: dict):
+    if event_dict["level_number"] < level:
+        raise structlog.DropEvent
+
+    return event_dict
+
+
+def configure_logging(verbose: int, json_cmd_out: Optional[Path] = None, sh_cmd_out: Optional[Path] = None):
     verbosity = {0: logging.ERROR, 1: logging.WARNING, 2: logging.INFO, 3: logging.DEBUG}
+    processors = [
+        structlog.stdlib.add_log_level_number,
+        partial(_drop_lvl, verbosity[verbose]),
+        structlog.stdlib.render_to_log_kwargs,
+        structlog.dev.ConsoleRenderer(),
+    ]
+    if sh_cmd_out:
+        _PROCESSORS.append(SHLogger(sh_cmd_out))
+
     structlog.configure(
-        wrapper_class=structlog.make_filtering_bound_logger(verbosity[verbose]),
+        processors=_PROCESSORS + processors,
+        wrapper_class=structlog.BoundLogger,
+        logger_factory=structlog.PrintLoggerFactory(),
     )
 
 
 @app.callback()
 def _shared_flags(
     verbose: int = typer.Option(0, "-v", "--verbose", help="If set print debug messages", count=True),
+    json_cmd_out: Optional[Path] = typer.Option(None, "--json-cmd-out"),
+    sh_cmd_out: Optional[Path] = typer.Option(None, "--sh-cmd-out"),
 ):
     shared_options["verbose"] = verbose
-    configure_logging(verbose)
+    shared_options["json_cmd_out"] = json_cmd_out
+    shared_options["sh_cmd_out"] = sh_cmd_out
+    configure_logging(verbose, json_cmd_out, sh_cmd_out)
 
 
 def print_summary(app: OSXAPP, issues: Sequence[Issue]):
@@ -78,12 +125,14 @@ def fix(root: Path, dry_run: bool = False):
     """
     app = OSXAPP.from_path(root)
     issues = app.check_binaries()
-    print_summary(app, issues)
-    if dry_run:
-        return
 
-    for issue in issues:
-        issue.fix(dry_run=dry_run)
+    print_summary(app, issues)
+
+    with ExitStack() as xstack:
+        for ctx in _PROCESSORS:
+            xstack.enter_context(ctx)
+        for issue in issues:
+            issue.fix(dry_run=dry_run)
 
 
 @app.command()
