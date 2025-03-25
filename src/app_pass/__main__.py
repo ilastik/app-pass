@@ -95,6 +95,21 @@ def print_summary(app: OSXAPP, issues: Sequence[Issue]):
 
     console.print(text)
 
+def print_unfixable(app: OSXAPP, issues: Sequence[Issue]):
+    console = Console()
+    text = Text()
+    for issue in issues:
+        text.append(
+            text.assemble(
+                ("Could ", ""),
+                (f"not ", "bold red"),
+                ("fix issue: ", ""),
+                (f"{issue.details}\n ", "red"),
+            )
+        )
+
+    console.print(text)
+
 
 @app.command()
 def check(root: Path):
@@ -132,8 +147,13 @@ def fix(root: Path, dry_run: bool = False):
         for ctx in _PROCESSORS:
             xstack.enter_context(ctx)
         for issue in issues:
-            issue.fix(dry_run=dry_run)
+            if issue.fixable:
+                assert issue.fix
+                issue.fix(dry_run=dry_run)
 
+    unfixable = [issue for issue in issues if not issue.fixable]
+
+    print_unfixable(app, unfixable)
 
 @app.command()
 def sign():
