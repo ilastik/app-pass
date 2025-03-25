@@ -25,12 +25,12 @@ def run_logged_act(args: list[str], dry_run=True, intends_side_effect=True) -> s
             "Nonzero exit code from command",
             command=" ".join(args),
             exit_code=out.returncode,
-            stdout=out.stdout.decode("utf-8"),
-            stderr=out.stderr.decode("utf-8"),
+            stderr=out.stderr.decode("utf-8") if out.stderr else "",
+            output=out.stdout.decode("utf-8") if out.stdout else "",
         )
         raise subprocess.CalledProcessError(
             returncode=out.returncode,
-            cmd=args,
+            cmd=" ".join(args),
             stderr=out.stderr.decode("utf-8") if out.stderr else "",
             output=out.stdout.decode("utf-8") if out.stdout else "",
         )
