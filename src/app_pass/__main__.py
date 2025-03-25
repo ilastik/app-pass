@@ -48,6 +48,7 @@ def print_summary(app: OSXAPP, issues: Sequence[Issue]):
 
     console.print(text)
 
+
 @app.command()
 def check(root: Path):
     """Check if .app bundle is likely to pass MacOs Gatekeeper
@@ -63,14 +64,14 @@ def check(root: Path):
     issues = app.check_binaries()
     print_summary(app, issues)
 
-    app.check_binaries()
 
-    # print(f"{set(x.header.filetype for x in macho_binaries)=}, {set(x.header.magic for x in macho_binaries)=}")
-    # print(set(lib for x in macho_binaries for lib in x.dylibs))
+@app.command()
+def info(root: Path):
+    fix(root, dry_run=True)
 
 
 @app.command()
-def fix(root: Path, dry_run: bool=False):
+def fix(root: Path, dry_run: bool = False):
     """Fix issues in mach-o libraries .app bundle
 
     Remove paths that point outside the app.
