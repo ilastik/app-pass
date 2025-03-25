@@ -52,6 +52,9 @@ def run_logged_act(args: list[str], dry_run=True, intends_side_effect=True) -> s
 
 def is_macho(path: pathlib.Path) -> bool:
     if "mach-o" in run_logged_read(["file", str(path)]).lower():
+        if path.suffix == ".a":
+            logger.info("Ignoring static library", library=path)
+            return False
         return True
 
     return False
