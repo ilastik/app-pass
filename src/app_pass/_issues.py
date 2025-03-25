@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 @dataclass
 class Issue:
     fixable: bool
+    details: str
     fix: Optional[Callable[[], bool]] = None
 
 

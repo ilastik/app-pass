@@ -113,13 +113,36 @@ class Build:
 
         return Build(platform=platform, minos=minos, sdk=sdk)
 
-
-    @property
-    def is_valid(self) -> bool:
-        if self.platform and _VALID_VER.match(self.minos) and _VALID_VER.match(self.sdk):
+    @staticmethod
+    def _version_req_met(v: str) -> bool:
+        _MIN_V = version.parse("10.9")
+        if version.parse(v) >= _MIN_V:
             return True
 
         return False
+
+    @property
+    def is_valid(self) -> bool:
+        """Will pass gatekeeper"""
+        if self.platform and _VALID_VER.match(self.minos) and _VALID_VER.match(self.sdk):
+            # older versions can not pass gatekeeper
+            if Build._version_req_met(self.minos) and Build._version_req_met(self.sdk):
+                return True
+
+        return False
+
+    @property
+    def can_fix(self) -> bool:
+        """Libraries that were build with too old of an sdk can not be fixed."""
+        if _VALID_VER.match(self.minos):
+            if not Build._version_req_met(self.minos):
+                return False
+
+        if _VALID_VER.match(self.sdk):
+            if not Build._version_req_met(self.sdk):
+                return False
+
+        return True
 
     @property
     def invalid_fields(self) -> dict[str, str]:
