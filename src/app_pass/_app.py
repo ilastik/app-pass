@@ -36,6 +36,13 @@ class OSXAPP:
         plist = root / "Contents" / "Info.plist"
         assert plist.exists()
         plist_dict = parse_plist(plist)
+        # I've seen both, the executable "CFBundleExecutable" being only the `binary` within "MacOS" folder
+        # and `MacOS/binary`:
+        bundle_exe = Path(plist_dict["CFBundleExecutable"])
+        if bundle_exe.parent == Path("MacOS"):
+            loader_path = root / "Contents" / bundle_exe
+        else:
+            loader_path = root / "Contents" / "MacOS" / bundle_exe
 
         macho_binaries: list[MachOBinary] = []
 
@@ -43,7 +50,7 @@ class OSXAPP:
             if macho_bin := parse_macho(f):
                 macho_binaries.append(macho_bin)
 
-        return OSXAPP(root, root / "Contents" / "MacOS" / plist_dict["CFBundleExecutable"], macho_binaries)
+        return OSXAPP(root, loader_path, macho_binaries)
 
     def __post_init__(self):
         assert self.loader_path.exists(), self.loader_path
