@@ -46,7 +46,7 @@ class OSXAPP:
 
         macho_binaries: list[MachOBinary] = []
 
-        for f in iter_all_binaries(root):
+        for f in iter_all_binaries(root, "Searching for binaries..."):
             if macho_bin := parse_macho(f):
                 macho_binaries.append(macho_bin)
 

@@ -1,5 +1,6 @@
 import pathlib
 import subprocess
+from typing import Optional
 
 import structlog
 from rich.progress import track
@@ -60,7 +61,8 @@ def is_macho(path: pathlib.Path) -> bool:
     return False
 
 
-def iter_all_binaries(root: pathlib.Path):
-    for f in track(list(root.glob("**/*"))):
+def iter_all_binaries(root: pathlib.Path, description: Optional[str]=None):
+    desc = description or "Scanning..."
+    for f in track(list(root.glob("**/*")), description=desc):
         if is_macho(f):
             yield f
