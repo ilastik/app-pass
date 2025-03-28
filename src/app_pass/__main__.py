@@ -95,6 +95,7 @@ def print_summary(app: OSXAPP, issues: Sequence[Issue]):
 
     console.print(text)
 
+
 def print_unfixable(app: OSXAPP, issues: Sequence[Issue]):
     console = Console()
     text = Text()
@@ -154,6 +155,7 @@ def fix(root: Path, dry_run: bool = False):
     unfixable = [issue for issue in issues if not issue.fixable]
 
     print_unfixable(app, unfixable)
+
 
 @app.command()
 def sign():

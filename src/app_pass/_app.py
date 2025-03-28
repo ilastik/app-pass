@@ -1,13 +1,13 @@
 from dataclasses import dataclass
-from functools import partial
+from functools import cached_property, partial
 from pathlib import Path
 from typing import List, Optional
 
 import structlog
 from lxml import etree
 
-from ._issues import BuildIssue, Issue, LibararyPathIssue
-from ._macho import Build, MachOBinary, parse_macho, vtool_overwrite
+from ._issues import BuildIssue, Issue, LibraryPathIssue, RcpathIssue
+from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, vtool_overwrite
 from ._util import iter_all_binaries
 
 logger = structlog.get_logger()
@@ -20,29 +20,36 @@ def parse_plist(plist: Path):
     return {x.text: x.getnext().text for x in root.findall(".//dict/key")}
 
 
-_ALLOWED = [Path(x) for x in ["@rpath", "@executable_path", "@loader_path", "/System/", "/usr/", "/Library/"]]
+# for now the assumption is that whenever these are encountered, things should be fine.
+_ALLOWED_SPECIAL = [Path(x) for x in ["@rpath", "@executable_path", "@loader_path"]]
+_ALLOWED_SYSTEM = [Path(x) for x in ["/System/", "/usr/", "/Library/"]]
 
 
 @dataclass
 class OSXAPP:
     root: Path
-    loader_path: Path
+    loader_path: Path  # dir
+    bundle_exe: Path  # file
     macho_binaries: list[MachOBinary]
     # TODO: make build configurable
     default_build: Build = Build(platform="macos", minos="11.0", sdk="11.0")
 
     @staticmethod
     def from_path(root: Path) -> "OSXAPP":
+        if not root.is_absolute():
+            root = root.resolve()
         plist = root / "Contents" / "Info.plist"
         assert plist.exists()
         plist_dict = parse_plist(plist)
         # I've seen both, the executable "CFBundleExecutable" being only the `binary` within "MacOS" folder
         # and `MacOS/binary`:
-        bundle_exe = Path(plist_dict["CFBundleExecutable"])
-        if bundle_exe.parent == Path("MacOS"):
-            loader_path = root / "Contents" / bundle_exe
+        executable = Path(plist_dict["CFBundleExecutable"])
+        if executable.parent == Path("MacOS"):
+            bundle_exe = root / "Contents" / executable
         else:
-            loader_path = root / "Contents" / "MacOS" / bundle_exe
+            bundle_exe = root / "Contents" / "MacOS" / executable
+
+        loader_path = bundle_exe.parent
 
         macho_binaries: list[MachOBinary] = []
 
@@ -50,19 +57,43 @@ class OSXAPP:
             if macho_bin := parse_macho(f):
                 macho_binaries.append(macho_bin)
 
-        return OSXAPP(root, loader_path, macho_binaries)
+        return OSXAPP(root, loader_path, bundle_exe, macho_binaries)
 
     def __post_init__(self):
-        assert self.loader_path.exists(), self.loader_path
-        assert self.loader_path.is_relative_to(self.root), self.loader_path
+        assert self.bundle_exe.exists(), self.bundle_exe
+        assert self.bundle_exe.is_file()
+        assert self.bundle_exe.is_relative_to(self.root), self.bundle_exe
+
+    @cached_property
+    def libraries(self) -> dict[str, MachOBinary]:
+        return {x.path.name: x for x in self.macho_binaries}
+
+    def lib_loader_relative(self, libname):
+        assert libname in self.libraries
+        lib_path = self.libraries[libname].path
+        return Path("@loader_path") / lib_path.relative_to(self.loader_path)
+
+    @cached_property
+    def bundle_exe_rpaths(self) -> List[Path]:
+        filtered = list(filter(lambda x: x.path == self.bundle_exe, self.macho_binaries))
+        assert len(filtered) == 1
+        bundle_exe_macho = filtered[0]
+        if any(rc.is_absolute() for rc in bundle_exe_macho.rpaths):
+            raise ValueError(
+                f"{bundle_exe_macho.rpaths=} in {bundle_exe_macho.path=} need fixing, may not be absolute."
+            )
+        return bundle_exe_macho.rpaths
 
     def check_binaries(self) -> List[Issue]:
         issues = []
         for macho_binary in self.macho_binaries:
-            if not check_libs_valid(self, macho_binary):
-                print(macho_binary)
-            if not check_rpaths_valid(self, macho_binary):
-                print(macho_binary)
+            id_issues = check_id_needs_fix(self, macho_binary)
+            issues.extend(id_issues)
+            lib_issues = check_libs_need_fix(self, macho_binary)
+            issues.extend(lib_issues)
+            rc_issues = check_rpaths_need_fix(self, macho_binary)
+            issues.extend(rc_issues)
+
             if macho_binary.build and not macho_binary.build.is_valid:
                 if macho_binary.build.can_fix:
                     valid_build = macho_binary.build.valid_build(self.default_build)
@@ -95,22 +126,100 @@ class OSXAPP:
         return issues
 
 
-def check_libs_valid(app: OSXAPP, binary: MachOBinary) -> Optional[LibararyPathIssue]:
+def fix_path_pointer(app: OSXAPP, path: Path) -> Optional[Path]:
+    """
+    Return a modified, valid path inside the app for a given path
+    """
+    if any(path.is_relative_to(x) for x in _ALLOWED_SYSTEM + _ALLOWED_SPECIAL):
+        # could still be broken but if the app is running at all, this should
+        # be fine
+        return path
+
+    if path.is_absolute() and path.is_relative_to(app.root):
+        # we should be able to fix it somehow.
+        # check if relative to one of the rpaths of the main executable
+        app_rpaths = app.bundle_exe_rpaths
+        for rpath in app_rpaths:
+            assert not rpath.is_absolute()
+            if "@loader_path/" in str(rpath):
+                rc_abs = app.loader_path / Path(str(rpath).replace("@loader_path/", ""))
+            elif "@executable_path/" in str(rpath):
+                rc_abs = app.loader_path / Path(str(rpath).replace("@executable_path/", ""))
+            elif "@executable_path/" in str(rpath):
+                raise ValueError("Didn't really expect a relative path with @rpath, but it seems to exist :).")
+            else:
+                raise ValueError(f"Could not resolve rc_path - probably not valid {path}")
+
+            if path.is_relative_to(rc_abs):
+                new_path = path.relative_to(rc_abs)
+                return rpath / new_path
+
+        # fallback to loader_path and hope for the best (will break if loaded
+        # based on some other executable)
+        path = path.relative_to(app.loader_path)
+        return Path("@loader_path") / path
+
+
+def check_id_needs_fix(app: OSXAPP, binary: MachOBinary) -> List[LibraryPathIssue]:
+    if not binary.id_:
+        return []
+
+    if not any(binary.id_.is_relative_to(x) for x in _ALLOWED_SYSTEM + _ALLOWED_SPECIAL):
+        return [
+            LibraryPathIssue(
+                fixable=True,
+                details="Library ID with fixed path",
+                fix=partial(fix_lib_id, binary.path, Path("@rpath") / binary.id_.name),
+            )
+        ]
+    else:
+        return []
+
+
+def check_libs_need_fix(app: OSXAPP, binary: MachOBinary) -> List[LibraryPathIssue]:
     invalid = []
     for lib in binary.dylibs:
-        if not any(lib.is_relative_to(x) for x in _ALLOWED + [app.root]):
+        if not any(lib.is_relative_to(x) for x in _ALLOWED_SYSTEM + _ALLOWED_SPECIAL):
             invalid.append(lib)
 
-    for inv in invalid:
-        pass
+    issues = []
+    # try to find a direct hit for the library
+    for lib in invalid:
+        if lib.name in app.libraries:
+            found = app.lib_loader_relative(lib.name)
+            issues.append(
+                LibraryPathIssue(
+                    fixable=True,
+                    details="Link to library not valid",
+                    fix=partial(fix_load_path, binary.path, lib, found),
+                )
+            )
+        else:
+            issues.append(LibraryPathIssue(fixable=False, details=f"Issue with {lib.name} at {lib} for {binary.path}"))
 
-    return True
+    return issues
 
 
-def check_rpaths_valid(app: OSXAPP, binary: MachOBinary) -> bool:
-    invalid = []
-    for pth in binary.rc_paths:
-        if not any(pth.is_relative_to(x) for x in _ALLOWED + [app.root]):
-            invalid.append(pth)
+# TODO: fix the functions ;)
+def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary) -> List[RcpathIssue]:
+    issues: List[RcpathIssue] = []
+    for pth in binary.rpaths:
+        fixed = fix_path_pointer(app, pth)
+        if fixed and fixed != pth:
+            issues.append(
+                RcpathIssue(
+                    fixable=True,
+                    details=f"Rcpath fix: {pth} -> {fixed}",
+                    fix=partial(fix_rpath, pth, fixed, binary.path),
+                )
+            )
 
-    return not invalid
+        if not fixed:
+            issues.append(
+                RcpathIssue(
+                    fixable=False,
+                    details=f"rpath in {binary.path} pointing outside of binary and allowed system paths, this may indicate build issues {pth}.",
+                )
+            )
+
+    return issues

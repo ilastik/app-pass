@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-
 from typing import TYPE_CHECKING, Callable, Optional
-
 
 if TYPE_CHECKING:
     from ._macho import MachOBinary
@@ -20,10 +18,10 @@ class BuildIssue(Issue):
 
 
 @dataclass
-class RpathIssue(Issue):
+class RcpathIssue(Issue):
     pass
 
 
 @dataclass
-class LibararyPathIssue(Issue):
+class LibraryPathIssue(Issue):
     pass

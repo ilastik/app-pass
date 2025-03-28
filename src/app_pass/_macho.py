@@ -10,6 +10,7 @@ from packaging import version
 from ._util import run_logged_act, run_logged_read
 
 _LIB_REGEX = re.compile(r"\t(?P<library>[@/]\S+\.(dylib|so))")
+_LC_ID_DYLIB_REGEX = re.compile(r"\s*name (?P<dylib>.+) \(offset \d+\)$")
 _LOAD_DYLIB_REGEX = re.compile(r"\s*name (?P<dylib>.+) \(offset \d+\)$")
 _LOAD_RCPATH_REGEX = re.compile(r"\s*path (?P<rc_path>.+) \(offset \d+\)$")
 _LOAD_COMMAND_REGEX = re.compile(r"(Load command \d+.*?)(?=Load command \d+|$)", re.DOTALL)
@@ -217,9 +218,7 @@ def vtool_read(path: Path) -> Build:
           sdk 10.9
        ntools 0
     """
-    return Build.from_vtool_output(
-        run_logged_read(["/usr/bin/vtool", "-show-build", str(path)])
-    )
+    return Build.from_vtool_output(run_logged_read(["/usr/bin/vtool", "-show-build", str(path)]))
 
 
 def vtool_overwrite(path: Path, build: Build, dry_run=True):
@@ -235,7 +234,7 @@ def vtool_overwrite(path: Path, build: Build, dry_run=True):
             str(path),
             str(path),
         ],
-        dry_run=dry_run
+        dry_run=dry_run,
     )
 
     return True
@@ -245,9 +244,10 @@ def vtool_overwrite(path: Path, build: Build, dry_run=True):
 class MachOBinary:
     path: Path
     header: MachOHeader
-    rc_paths: list[Path]
+    rpaths: list[Path]
     dylibs: list[Path]
     build: Optional[Build]
+    id_: Optional[Path]
 
 
 def otool_l(path: Path) -> tuple[LoadCommand, ...]:
@@ -264,7 +264,7 @@ def otool_h(path: Path) -> MachOHeader:
     return MachOHeader.from_otool_output(out)
 
 
-def rc_paths(cmds: tuple[LoadCommand, ...]) -> list[Path]:
+def rpaths(cmds: tuple[LoadCommand, ...]) -> list[Path]:
     rcpath_cmds = [cmd for cmd in cmds if cmd.cmd == "LC_RPATH"]
     paths = []
     for rcpath_cmd in rcpath_cmds:
@@ -273,6 +273,22 @@ def rc_paths(cmds: tuple[LoadCommand, ...]) -> list[Path]:
         paths.append(Path(_LOAD_RCPATH_REGEX.match(p[0]).groupdict()["rc_path"]))
 
     return paths
+
+
+def libid(cmds: tuple[LoadCommand, ...]) -> Optional[Path]:
+    id_commands = [cmd for cmd in cmds if cmd.cmd == "LC_ID_DYLIB"]
+    if len(id_commands) == 0:
+        return None
+    id_command = id_commands[0]
+    p = [x for x in id_command.cmd_specifics if x.split()[0] == "name"]
+    assert len(p) == 1
+    if m := _LOAD_DYLIB_REGEX.match(p[0]):
+        p = m.groupdict()["dylib"]
+        dylib = Path(p)
+    else:
+        raise ValueError(f"Could not parse command {id_command}")
+
+    return dylib
 
 
 def dylibs(cmds: tuple[LoadCommand, ...]) -> list[Path]:
@@ -293,10 +309,16 @@ def dylibs(cmds: tuple[LoadCommand, ...]) -> list[Path]:
 
 
 def parse_macho(some_path: Path):
-    header = otool_h(some_path)
-    cmds = otool_l(some_path)
-    paths = rc_paths(cmds)
-    libs = dylibs(cmds)
+    if not some_path.is_absolute():
+        some_path = some_path.resolve()
+    try:
+        header = otool_h(some_path)
+        cmds = otool_l(some_path)
+        paths = rpaths(cmds)
+        lib_id = libid(cmds)
+        libs = dylibs(cmds)
+    except Exception as e:
+        raise ValueError(f"Problem parsing {some_path}") from e
 
     # Found these to contain multiple architectures and binaries
     # vtool (currently) doesn't seem to handle those.
@@ -305,4 +327,28 @@ def parse_macho(some_path: Path):
     #     build = None
     # else:
     build = vtool_read(some_path)
-    return MachOBinary(some_path, header, paths, libs, build)
+    return MachOBinary(some_path, header, paths, libs, build, lib_id)
+
+
+def fix_lib_id(library_path: Path, new_path: Path, dry_run=True):
+    args = ["install_name_tool", "-id", str(new_path), str(library_path)]
+    run_logged_act(args, dry_run=dry_run)
+    return True
+
+
+def fix_load_path(library_path: Path, dependency: Path, new_path: Path, dry_run=True):
+    args = ["install_name_tool", "-change", str(dependency), str(new_path), str(library_path)]
+    run_logged_act(args, dry_run)
+    return True
+
+
+def remove_rpath(library_path, rpath):
+    args = ["install_name_tool", "-delete_rpath", str(rpath), str(library_path)]
+    run_logged_act(args)
+    return True
+
+
+def fix_rpath(library_path, old_rpath, new_rpath, dry_run=True):
+    args = ["install_name_tool", "-rpath", str(old_rpath), str(new_rpath), str(library_path)]
+    run_logged_act(args, dry_run=dry_run)
+    return True
