@@ -296,7 +296,7 @@ def dylibs(cmds: tuple[LoadCommand, ...]) -> list[Path]:
 
     returns a list of dynamic libraries loaded via load commands
     """
-    dylib_cmds = [cmd for cmd in cmds if cmd.cmd == "LC_LOAD_DYLIB"]
+    dylib_cmds = [cmd for cmd in cmds if cmd.cmd in ("LC_LOAD_DYLIB", "LC_REEXPORT_DYLIB")]
     dylibs = []
     for rcpath_cmd in dylib_cmds:
         p = [x for x in rcpath_cmd.cmd_specifics if x.split()[0] == "name"]
