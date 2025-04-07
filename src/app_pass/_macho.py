@@ -3,14 +3,13 @@ import subprocess
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
 from packaging import version
 
 from ._util import run_logged_act, run_logged_read
 
-_LIB_REGEX = re.compile(r"\t(?P<library>[@/]\S+\.(dylib|so))")
-_LC_ID_DYLIB_REGEX = re.compile(r"\s*name (?P<dylib>.+) \(offset \d+\)$")
+
 _LOAD_DYLIB_REGEX = re.compile(r"\s*name (?P<dylib>.+) \(offset \d+\)$")
 _LOAD_RCPATH_REGEX = re.compile(r"\s*path (?P<rc_path>.+) \(offset \d+\)$")
 _LOAD_COMMAND_REGEX = re.compile(r"(Load command \d+.*?)(?=Load command \d+|$)", re.DOTALL)
@@ -342,9 +341,9 @@ def fix_load_path(library_path: Path, dependency: Path, new_path: Path, dry_run=
     return True
 
 
-def remove_rpath(library_path, rpath):
+def remove_rpath(library_path, rpath, dry_run=True):
     args = ["install_name_tool", "-delete_rpath", str(rpath), str(library_path)]
-    run_logged_act(args)
+    run_logged_act(args, dry_run=dry_run)
     return True
 
 
