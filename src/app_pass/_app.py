@@ -7,7 +7,16 @@ import structlog
 from lxml import etree
 
 from ._issues import BuildIssue, Issue, LibraryPathIssue, RcpathIssue
-from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, vtool_overwrite
+from ._macho import (
+    Build,
+    MachOBinary,
+    fix_lib_id,
+    fix_load_path,
+    fix_rpath,
+    parse_macho,
+    remove_rpath,
+    vtool_overwrite,
+)
 from ._util import iter_all_binaries
 
 logger = structlog.get_logger()
@@ -71,7 +80,22 @@ class OSXAPP:
     def lib_loader_relative(self, libname):
         assert libname in self.libraries
         lib_path = self.libraries[libname].path
-        return Path("@loader_path") / lib_path.relative_to(self.loader_path)
+
+        loader_root_relative = self.loader_path.relative_to(self.root)
+
+        candiates = [loader_root_relative] + list(loader_root_relative.parents)
+
+        loader_relative_path = None
+        for i, candidate in enumerate(candiates):
+            if lib_path.is_relative_to(self.root / candidate):
+                up = "/".join([".."] * i)
+                loader_relative_path = Path("@loader_path") / up / lib_path.relative_to(self.root / candidate)
+                break
+
+        if loader_relative_path:
+            return loader_relative_path
+        else:
+            raise ValueError(f"Could not determine loader relative path for {lib_path} in {self.root=}")
 
     @cached_property
     def bundle_exe_rpaths(self) -> List[Path]:
@@ -84,14 +108,14 @@ class OSXAPP:
             )
         return bundle_exe_macho.rpaths
 
-    def check_binaries(self) -> List[Issue]:
+    def check_binaries(self, rc_path_delete: bool = False) -> List[Issue]:
         issues = []
         for macho_binary in self.macho_binaries:
             id_issues = check_id_needs_fix(self, macho_binary)
             issues.extend(id_issues)
             lib_issues = check_libs_need_fix(self, macho_binary)
             issues.extend(lib_issues)
-            rc_issues = check_rpaths_need_fix(self, macho_binary)
+            rc_issues = check_rpaths_need_fix(self, macho_binary, rc_path_delete)
             issues.extend(rc_issues)
 
             if macho_binary.build and not macho_binary.build.is_valid:
@@ -200,8 +224,7 @@ def check_libs_need_fix(app: OSXAPP, binary: MachOBinary) -> List[LibraryPathIss
     return issues
 
 
-# TODO: fix the functions ;)
-def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary) -> List[RcpathIssue]:
+def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary, rc_path_delete: bool) -> List[RcpathIssue]:
     issues: List[RcpathIssue] = []
     for pth in binary.rpaths:
         fixed = fix_path_pointer(app, pth)
@@ -210,16 +233,25 @@ def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary) -> List[RcpathIssue]
                 RcpathIssue(
                     fixable=True,
                     details=f"Rcpath fix: {pth} -> {fixed}",
-                    fix=partial(fix_rpath, pth, fixed, binary.path),
+                    fix=partial(fix_rpath, binary.path, pth, fixed),
                 )
             )
 
         if not fixed:
-            issues.append(
-                RcpathIssue(
-                    fixable=False,
-                    details=f"rpath in {binary.path} pointing outside of binary and allowed system paths, this may indicate build issues {pth}.",
+            if rc_path_delete:
+                issues.append(
+                    RcpathIssue(
+                        fixable=True,
+                        details=f"DELETING rpath in {binary.path} pointing outside of binary and allowed system paths, this may indicate build issues {pth}.",
+                        fix=partial(remove_rpath, binary.path, pth),
+                    )
                 )
-            )
+            else:
+                issues.append(
+                    RcpathIssue(
+                        fixable=False,
+                        details=f"rpath in {binary.path} pointing outside of binary and allowed system paths, this may indicate build issues {pth}.",
+                    )
+                )
 
     return issues

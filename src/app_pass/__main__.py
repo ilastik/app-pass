@@ -155,24 +155,21 @@ def check(root: Path):
 
     Check all binaries are signed.
     """
-    app = OSXAPP.from_path(root)
-    issues = app.check_binaries()
-    print_summary(app, issues)
-
-
-@app.command()
-def info(root: Path):
     fix(root, dry_run=True)
 
 
 @app.command()
-def fix(root: Path, dry_run: bool = False):
+def fix(root: Path, dry_run: bool = False, rc_path_delete: bool = False):
     """Fix issues in mach-o libraries .app bundle
 
     Remove paths that point outside the app.
+
+    Args:
+        rc_path_delete: delete rc_paths that point outside the app. Use with care
+
     """
     app = OSXAPP.from_path(root)
-    issues = app.check_binaries()
+    issues = app.check_binaries(rc_path_delete=rc_path_delete)
 
     print_summary(app, issues)
 
