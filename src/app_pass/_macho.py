@@ -351,3 +351,22 @@ def fix_rpath(library_path, old_rpath, new_rpath, dry_run=True):
     args = ["install_name_tool", "-rpath", str(old_rpath), str(new_rpath), str(library_path)]
     run_logged_act(args, dry_run=dry_run)
     return True
+
+
+def sign_impl(entitlement_file, developer_id, path, dry_run):
+    run_logged_act(
+        [
+            "/usr/bin/codesign",
+            "--entitlements",
+            str(entitlement_file),
+            "--timestamp",
+            "-o",
+            "runtime",
+            "-f",
+            "-s",
+            developer_id,
+            str(path),
+        ],
+        dry_run=dry_run,
+        intends_side_effect=True,
+    )
