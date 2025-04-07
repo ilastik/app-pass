@@ -1,3 +1,4 @@
+import json
 import logging
 from contextlib import ExitStack
 from functools import partial
@@ -39,6 +40,33 @@ class SHLogger:
             self._handle.close()
 
 
+class JSONLogger:
+    def __init__(self, filename: Path):
+        self._filename: Path = filename
+        self._handle = None
+        self._div = ""
+
+    def __call__(self, _logger, _method_name, event_dict: dict):
+        if self._handle is None:
+            return event_dict
+        if event_dict.get("side_effect", None):
+            if cmd := event_dict.get("command", None):
+                msg = json.dumps(dict(command=cmd))
+                self._handle.write(f"{self._div}\n{msg}")
+                if self._div == "":
+                    self._div = ","
+        return event_dict
+
+    def __enter__(self):
+        self._handle = self._filename.open("w")
+        self._handle.write("[\n")
+
+    def __exit__(self, *_):
+        if self._handle:
+            self._handle.write("]\n")
+            self._handle.close()
+
+
 def _drop_lvl(level, _logger, _method_name, event_dict: dict):
     if event_dict["level_number"] < level:
         raise structlog.DropEvent
@@ -56,6 +84,9 @@ def configure_logging(verbose: int, json_cmd_out: Optional[Path] = None, sh_cmd_
     ]
     if sh_cmd_out:
         _PROCESSORS.append(SHLogger(sh_cmd_out))
+
+    if json_cmd_out:
+        _PROCESSORS.append(JSONLogger(json_cmd_out))
 
     structlog.configure(
         processors=_PROCESSORS + processors,
