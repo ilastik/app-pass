@@ -50,12 +50,11 @@ def run_logged_act(args: list[str], dry_run=True, intends_side_effect=True) -> s
 
 
 def is_macho(path: pathlib.Path) -> bool:
+    if path.suffix in (".a", ".o"):
+        logger.info("Ignoring .a, and .o files", library=path)
+        return False
     file_out = run_logged_read(["file", str(path)]).lower()
     if "mach-o" in file_out:
-        if path.suffix == ".a":
-            logger.info("Ignoring static library", library=path)
-            return False
-
         if "architectures" in file_out:
             logger.warning(f"Multiple architectures in file", filename=path)
         return True
@@ -65,7 +64,6 @@ def is_macho(path: pathlib.Path) -> bool:
 
 def iter_all_binaries(root: pathlib.Path, description: Optional[str] = None):
     desc = description or "Scanning..."
-    print("remember to scan all, this is for dev only")
-    for f in track(list(root.glob("**/*.dylib")) + list(root.glob("**/*.so")), description=desc):
+    for f in track(list(root.glob("**/*")), description=desc):
         if is_macho(f):
             yield f
