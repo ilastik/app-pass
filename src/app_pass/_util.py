@@ -1,11 +1,29 @@
+import enum
 import pathlib
 import subprocess
-from typing import Optional
+from dataclasses import dataclass
+from typing import Generator, Iterator, Optional, Tuple
 
 import structlog
 from rich.progress import track
 
 logger = structlog.get_logger()
+
+
+class BinaryType(enum.Enum):
+    NONE = enum.auto()
+    MACHO = enum.auto()
+    JAR = enum.auto()
+
+
+@dataclass
+class BinaryObj:
+    path: pathlib.Path
+
+
+@dataclass
+class Jar(BinaryObj):
+    pass
 
 
 def run_logged_read(args: list[str]) -> str:
@@ -49,21 +67,26 @@ def run_logged_act(args: list[str], dry_run=True, intends_side_effect=True) -> s
     return out.stdout.decode("utf-8")
 
 
-def is_macho(path: pathlib.Path) -> bool:
+def is_binary(path: pathlib.Path) -> BinaryType:
     if path.suffix in (".a", ".o"):
         logger.info("Ignoring .a, and .o files", library=path)
-        return False
+        return BinaryType.NONE
     file_out = run_logged_read(["file", str(path)]).lower()
     if "mach-o" in file_out:
         if "architectures" in file_out:
             logger.warning(f"Multiple architectures in file", filename=path)
-        return True
+        return BinaryType.MACHO
+    elif "java archive data (jar)" in file_out:
+        return BinaryType.JAR
 
-    return False
+    return BinaryType.NONE
 
 
-def iter_all_binaries(root: pathlib.Path, description: Optional[str] = None):
+def iter_all_binaries(
+    root: pathlib.Path, description: Optional[str] = None
+) -> Iterator[Tuple[pathlib.Path, BinaryType]]:
     desc = description or "Scanning..."
     for f in track(list(root.glob("**/*")), description=desc):
-        if is_macho(f):
-            yield f
+        binary_type = is_binary(f)
+        if binary_type != BinaryType.NONE:
+            yield f, binary_type

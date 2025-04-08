@@ -2,6 +2,7 @@ import json
 import logging
 from contextlib import ExitStack
 from functools import partial
+from itertools import chain
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence
 
@@ -195,7 +196,9 @@ def sign(root: Path, entitlement_file: Path, developer_id: str, dry_run: bool = 
         for binary in app.macho_binaries:
             if binary.path == app.bundle_exe:
                 continue
+        for binary in chain(app.macho_binaries, app.jars):
             sign_impl(entitlement_file, developer_id, binary.path, dry_run)
+
         sign_impl(entitlement_file, developer_id, app.bundle_exe, dry_run)
         sign_impl(entitlement_file, developer_id, app.root, dry_run)
 

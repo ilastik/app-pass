@@ -7,8 +7,7 @@ from typing import Optional
 
 from packaging import version
 
-from ._util import run_logged_act, run_logged_read
-
+from ._util import BinaryObj, run_logged_act, run_logged_read
 
 _LOAD_DYLIB_REGEX = re.compile(r"\s*name (?P<dylib>.+) \(offset \d+\)$")
 _LOAD_RCPATH_REGEX = re.compile(r"\s*path (?P<rc_path>.+) \(offset \d+\)$")
@@ -240,8 +239,7 @@ def vtool_overwrite(path: Path, build: Build, dry_run=True):
 
 
 @dataclass
-class MachOBinary:
-    path: Path
+class MachOBinary(BinaryObj):
     header: MachOHeader
     rpaths: list[Path]
     dylibs: list[Path]

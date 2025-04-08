@@ -7,17 +7,8 @@ import structlog
 from lxml import etree
 
 from ._issues import BuildIssue, Issue, LibraryPathIssue, RcpathIssue
-from ._macho import (
-    Build,
-    MachOBinary,
-    fix_lib_id,
-    fix_load_path,
-    fix_rpath,
-    parse_macho,
-    remove_rpath,
-    vtool_overwrite,
-)
-from ._util import iter_all_binaries
+from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, remove_rpath, vtool_overwrite
+from ._util import BinaryType, Jar, iter_all_binaries
 
 logger = structlog.get_logger()
 
@@ -40,6 +31,7 @@ class OSXAPP:
     loader_path: Path  # dir
     bundle_exe: Path  # file
     macho_binaries: list[MachOBinary]
+    jars: list[Jar]
     # TODO: make build configurable
     default_build: Build = Build(platform="macos", minos="11.0", sdk="11.0")
 
@@ -61,12 +53,16 @@ class OSXAPP:
         loader_path = bundle_exe.parent
 
         macho_binaries: list[MachOBinary] = []
+        jars: list[Jar] = []
 
-        for f in iter_all_binaries(root, "Searching for binaries..."):
-            if macho_bin := parse_macho(f):
+        for f, bin_type in iter_all_binaries(root, "Searching for binaries..."):
+            if bin_type == BinaryType.MACHO:
+                macho_bin = parse_macho(f)
                 macho_binaries.append(macho_bin)
+            elif bin_type == BinaryType.JAR:
+                jars.append(Jar(f))
 
-        return OSXAPP(root, loader_path, bundle_exe, macho_binaries)
+        return OSXAPP(root, loader_path, bundle_exe, macho_binaries, jars)
 
     def __post_init__(self):
         assert self.bundle_exe.exists(), self.bundle_exe
