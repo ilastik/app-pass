@@ -3,12 +3,14 @@ from functools import cached_property, partial
 from pathlib import Path
 from typing import List, Optional
 
+from rich.progress import Progress
 import structlog
 from lxml import etree
 
 from ._issues import BuildIssue, Issue, LibraryPathIssue, RcpathIssue
+from ._jar import Jar
 from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, remove_rpath, vtool_overwrite
-from ._util import BinaryType, Jar, iter_all_binaries
+from ._util import BinaryType, iter_all_binaries
 
 logger = structlog.get_logger()
 
@@ -55,12 +57,13 @@ class OSXAPP:
         macho_binaries: list[MachOBinary] = []
         jars: list[Jar] = []
 
-        for f, bin_type in iter_all_binaries(root, "Searching for binaries..."):
-            if bin_type == BinaryType.MACHO:
-                macho_bin = parse_macho(f)
-                macho_binaries.append(macho_bin)
-            elif bin_type == BinaryType.JAR:
-                jars.append(Jar(f))
+        with Progress() as progress:
+            for f, bin_type in iter_all_binaries(root, progress):
+                if bin_type == BinaryType.MACHO:
+                    macho_bin = parse_macho(f)
+                    macho_binaries.append(macho_bin)
+                elif bin_type == BinaryType.JAR:
+                    jars.append(Jar.from_path(f, progress))
 
         return OSXAPP(root, loader_path, bundle_exe, macho_binaries, jars)
 

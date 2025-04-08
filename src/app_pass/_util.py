@@ -2,10 +2,10 @@ import enum
 import pathlib
 import subprocess
 from dataclasses import dataclass
-from typing import Generator, Iterator, Optional, Tuple
+from typing import Iterator, Optional, Tuple
 
 import structlog
-from rich.progress import track
+from rich.progress import Progress, track
 
 logger = structlog.get_logger()
 
@@ -19,11 +19,6 @@ class BinaryType(enum.Enum):
 @dataclass
 class BinaryObj:
     path: pathlib.Path
-
-
-@dataclass
-class Jar(BinaryObj):
-    pass
 
 
 def run_logged_read(args: list[str]) -> str:
@@ -83,10 +78,14 @@ def is_binary(path: pathlib.Path) -> BinaryType:
 
 
 def iter_all_binaries(
-    root: pathlib.Path, description: Optional[str] = None
+    root: pathlib.Path, progress: Progress,
 ) -> Iterator[Tuple[pathlib.Path, BinaryType]]:
-    desc = description or "Scanning..."
-    for f in track(list(root.glob("**/*")), description=desc):
+    files = list(root.glob("**/*"))
+    task = progress.add_task("Scanning files", total=len(files))
+    for f in files:
         binary_type = is_binary(f)
         if binary_type != BinaryType.NONE:
             yield f, binary_type
+        progress.advance(task, 1)
+
+    progress.remove_task(task)
