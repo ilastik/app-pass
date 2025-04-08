@@ -8,6 +8,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 import structlog
 import typer
 from rich.console import Console
+from rich.progress import track
 from rich.text import Text
 
 from app_pass._app import OSXAPP
@@ -192,7 +193,7 @@ def sign(root: Path, entitlement_file: Path, developer_id: str, dry_run: bool = 
     with ExitStack() as xstack:
         for ctx in _PROCESSORS:
             xstack.enter_context(ctx)
-        for binary in app.macho_binaries:
+        for binary in track(app.macho_binaries, description="Signing..."):
             if binary.path == app.bundle_exe:
                 continue
             sign_impl(entitlement_file, developer_id, binary.path, dry_run)
