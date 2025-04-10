@@ -2,10 +2,10 @@ import enum
 import pathlib
 import subprocess
 from dataclasses import dataclass
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, Tuple
 
 import structlog
-from rich.progress import Progress, track
+from rich.progress import Progress
 
 logger = structlog.get_logger()
 
@@ -21,16 +21,16 @@ class BinaryObj:
     path: pathlib.Path
 
 
-def run_logged_read(args: list[str]) -> str:
-    return run_logged_act(args, dry_run=False, intends_side_effect=False)
+def run_logged_read(args: list[str], **kwargs) -> str:
+    return run_logged_act(args, dry_run=False, intends_side_effect=False, **kwargs)
 
 
-def run_logged_act(args: list[str], dry_run=True, intends_side_effect=True) -> str:
+def run_logged_act(args: list[str], dry_run=True, intends_side_effect=True, **kwargs) -> str:
     logger.debug("About to execute", command=" ".join(args), side_effect=intends_side_effect)
     if dry_run:
         return ""
 
-    out = subprocess.run(args, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+    out = subprocess.run(args, stdout=subprocess.PIPE, stdin=subprocess.PIPE, **kwargs)
     if out.returncode != 0:
         logger.warning(
             "Nonzero exit code from command",
