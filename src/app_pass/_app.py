@@ -3,13 +3,14 @@ from functools import cached_property, partial
 from pathlib import Path
 from typing import List, Optional
 
-from rich.progress import Progress
 import structlog
 from lxml import etree
+from rich.progress import Progress
 
 from ._issues import BuildIssue, Issue, LibraryPathIssue, RcpathIssue
 from ._jar import Jar
-from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, remove_rpath, vtool_overwrite
+from ._macho import (Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath,
+                     parse_macho, remove_rpath, vtool_overwrite)
 from ._util import BinaryType, iter_all_binaries
 
 logger = structlog.get_logger()

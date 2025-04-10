@@ -196,6 +196,10 @@ def sign(root: Path, entitlement_file: Path, developer_id: str, dry_run: bool = 
         for binary in app.macho_binaries:
             if binary.path == app.bundle_exe:
                 continue
+
+        for jar in app.jars:
+            jar.sign(entitlement_file, developer_id, dry_run)
+
         for binary in chain(app.macho_binaries, app.jars):
             sign_impl(entitlement_file, developer_id, binary.path, dry_run)
 
