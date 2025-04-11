@@ -2,6 +2,7 @@ import json
 import logging
 from contextlib import ExitStack
 from functools import partial
+from itertools import chain
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence
 
@@ -160,7 +161,7 @@ def check(root: Path):
 
 
 @app.command()
-def fix(root: Path, dry_run: bool = False, rc_path_delete: bool = False):
+def fix(root: Path, dry_run: bool = False, rc_path_delete: bool = False, force_update: bool = False):
     """Fix issues in mach-o libraries .app bundle
 
     Remove paths that point outside the app.
@@ -170,8 +171,8 @@ def fix(root: Path, dry_run: bool = False, rc_path_delete: bool = False):
 
     """
     app = OSXAPP.from_path(root)
-    issues = app.check_binaries(rc_path_delete=rc_path_delete)
-
+    issues = app.check_macho_binaries(rc_path_delete=rc_path_delete)
+    issues.extend(app.check_jar_binaries(force_update=force_update))
     print_summary(app, issues)
 
     with ExitStack() as xstack:
@@ -181,6 +182,9 @@ def fix(root: Path, dry_run: bool = False, rc_path_delete: bool = False):
             if issue.fixable:
                 assert issue.fix
                 issue.fix(dry_run=dry_run)
+
+        for jar in app.jars:
+            jar.repack()
 
     unfixable = [issue for issue in issues if not issue.fixable]
 
@@ -193,10 +197,13 @@ def sign(root: Path, entitlement_file: Path, developer_id: str, dry_run: bool = 
     with ExitStack() as xstack:
         for ctx in _PROCESSORS:
             xstack.enter_context(ctx)
-        for binary in track(app.macho_binaries, description="Signing..."):
-            if binary.path == app.bundle_exe:
-                continue
+
+        for jar in app.jars:
+            jar.sign(entitlement_file, developer_id, dry_run)
+
+        for binary in chain(app.macho_binaries, app.jars):
             sign_impl(entitlement_file, developer_id, binary.path, dry_run)
+
         sign_impl(entitlement_file, developer_id, app.bundle_exe, dry_run)
         sign_impl(entitlement_file, developer_id, app.root, dry_run)
 
