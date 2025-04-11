@@ -66,19 +66,23 @@ def is_binary(path: pathlib.Path) -> BinaryType:
     if path.suffix in (".a", ".o"):
         logger.info("Ignoring .a, and .o files", library=path)
         return BinaryType.NONE
+
+    if path.suffix in (".py", ".txt", ".md", ".h", ".class", ".cpp", ".hpp", ".class"):
+        return BinaryType.NONE
     file_out = run_logged_read(["file", str(path)]).lower()
     if "mach-o" in file_out:
         if "architectures" in file_out:
             logger.warning(f"Multiple architectures in file", filename=path)
         return BinaryType.MACHO
-    elif "java archive data (jar)" in file_out:
+    elif path.suffix in (".jar", ".sym") and ("java archive data (jar)" in file_out or "zip archive data" in file_out):
         return BinaryType.JAR
 
     return BinaryType.NONE
 
 
 def iter_all_binaries(
-    root: pathlib.Path, progress: Progress,
+    root: pathlib.Path,
+    progress: Progress,
 ) -> Iterator[Tuple[pathlib.Path, BinaryType]]:
     files = list(root.glob("**/*"))
     task = progress.add_task("Scanning files", total=len(files))

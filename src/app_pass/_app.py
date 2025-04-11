@@ -9,8 +9,7 @@ from rich.progress import Progress
 
 from ._issues import BuildIssue, Issue, LibraryPathIssue, RcpathIssue
 from ._jar import Jar
-from ._macho import (Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath,
-                     parse_macho, remove_rpath, vtool_overwrite)
+from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, remove_rpath, vtool_overwrite
 from ._util import BinaryType, iter_all_binaries
 
 logger = structlog.get_logger()
@@ -36,7 +35,7 @@ class OSXAPP:
     macho_binaries: list[MachOBinary]
     jars: list[Jar]
     # TODO: make build configurable
-    default_build: Build = Build(platform="macos", minos="11.0", sdk="11.0")
+    default_build: Build = Build(platform="macos", minos="10.10", sdk="10.10")
 
     @staticmethod
     def from_path(root: Path) -> "OSXAPP":
@@ -108,7 +107,7 @@ class OSXAPP:
             )
         return bundle_exe_macho.rpaths
 
-    def check_binaries(self, rc_path_delete: bool = False) -> List[Issue]:
+    def check_macho_binaries(self, rc_path_delete: bool = False) -> List[Issue]:
         issues = []
         for macho_binary in self.macho_binaries:
             id_issues = check_id_needs_fix(self, macho_binary)
@@ -146,6 +145,49 @@ class OSXAPP:
                         issue_type="build_version_issue",
                         fixable=issue.fixable,
                     )
+
+        return issues
+
+    def check_jar_binaries(self, force_update: bool = False) -> List[Issue]:
+        issues = []
+        for jar in self.jars:
+            for binary in jar.binaries:
+
+                if binary.build and not binary.build.is_valid:
+                    if binary.build.can_fix:
+                        valid_build = binary.build.valid_build(self.default_build)
+                        issue = BuildIssue(
+                            fixable=True,
+                            details="Missing build number.",
+                            fix=partial(vtool_overwrite, binary.path, valid_build),
+                        )
+                    elif force_update:
+                        valid_build = binary.build.valid_build(self.default_build, overwrite=force_update)
+                        issue = BuildIssue(
+                            fixable=True,
+                            details="Missing build number.",
+                            fix=partial(vtool_overwrite, binary.path, valid_build),
+                        )
+                    else:
+                        issue = BuildIssue(
+                            fixable=False,
+                            details=f"Probably sdk for build outdated - gatekeeper requires >=10.9 ({binary.path}: {binary.build.platform=} {binary.build.sdk=} {binary.build.minos=})",
+                        )
+                    issues.append(issue)
+                    if issue.fixable:
+                        logger.info(
+                            "Issue found",
+                            library=binary.path,
+                            issue_type="build_version_issue",
+                            fixable=issue.fixable,
+                        )
+                    else:
+                        logger.warning(
+                            "Issue found",
+                            library=binary.path,
+                            issue_type="build_version_issue",
+                            fixable=issue.fixable,
+                        )
 
         return issues
 

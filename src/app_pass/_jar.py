@@ -54,8 +54,11 @@ class Jar(BinaryObj):
         for binary in self.binaries:
             sign_impl(entitlement_file, developer_id, binary.path, dry_run=False)
         # run_logged_act(["mv", str(self.path), str(self.path.with_suffix(".bak"))], dry_run=False, intends_side_effect=True)
+        self.repack()
+
+    def repack(self):
         run_logged_act(
-            ["ditto", "-v", "-c", "-k", "--keepParent", str(self.temp_path), self.path.with_suffix(".zip").name],
+            ["ditto", "-v", "-c", "-k", str(self.temp_path), self.path.with_suffix(".zip").name],
             dry_run=False,
             intends_side_effect=False,
             cwd=str(self.temp_path),
