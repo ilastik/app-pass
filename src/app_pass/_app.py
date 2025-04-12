@@ -72,6 +72,13 @@ class OSXAPP:
         assert self.bundle_exe.is_file()
         assert self.bundle_exe.is_relative_to(self.root), self.bundle_exe
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for jar in self.jars:
+            jar.repack()
+
     @cached_property
     def libraries(self) -> dict[str, MachOBinary]:
         return {x.path.name: x for x in self.macho_binaries}
