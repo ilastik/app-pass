@@ -130,12 +130,18 @@ class OSXAPP:
                     issue = BuildIssue(
                         fixable=True,
                         details="Missing build number.",
-                        fix=partial(vtool_overwrite, macho_binary.path, valid_build),
+                        fix=vtool_overwrite(macho_binary.path, valid_build),
                     )
                 else:
                     issue = BuildIssue(
                         fixable=False,
-                        details=f"Probably sdk for build outdated - gatekeeper requires >=10.9 ({macho_binary.path}: {macho_binary.build.platform=} {macho_binary.build.sdk=} {macho_binary.build.minos=})",
+                        details=(
+                            "Probably sdk for build outdated - gatekeeper requires >=10.9 "
+                            f"({macho_binary.path}: {macho_binary.build.platform=} {macho_binary.build.sdk=} {macho_binary.build.minos=}). "
+                            "Solving this properly means rebuilding the binary with a deployment target 10.9 "
+                            "(for x64) or 11.0 (for arm64). Alternatively you can try the --force-update flag, that "
+                            "simply overwrites the property."
+                        ),
                     )
                 issues.append(issue)
                 if issue.fixable:
@@ -166,19 +172,25 @@ class OSXAPP:
                         issue = BuildIssue(
                             fixable=True,
                             details="Missing build number.",
-                            fix=partial(vtool_overwrite, binary.path, valid_build),
+                            fix=vtool_overwrite(binary.path, valid_build),
                         )
                     elif force_update:
                         valid_build = binary.build.valid_build(self.default_build, overwrite=force_update)
                         issue = BuildIssue(
                             fixable=True,
                             details="Missing build number.",
-                            fix=partial(vtool_overwrite, binary.path, valid_build),
+                            fix=vtool_overwrite(binary.path, valid_build),
                         )
                     else:
                         issue = BuildIssue(
                             fixable=False,
-                            details=f"Probably sdk for build outdated - gatekeeper requires >=10.9 ({binary.path}: {binary.build.platform=} {binary.build.sdk=} {binary.build.minos=})",
+                            details=(
+                                "Probably sdk for build outdated - gatekeeper requires >=10.9 "
+                                f"({binary.path}: {binary.build.platform=} {binary.build.sdk=} {binary.build.minos=}). "
+                                "Solving this properly means rebuilding the binary with a deployment target 10.9 "
+                                "(for x64) or 11.0 (for arm64). Alternatively you can try the --force-update flag, that "
+                                "simply overwrites the property."
+                            ),
                         )
                     issues.append(issue)
                     if issue.fixable:
@@ -242,7 +254,7 @@ def check_id_needs_fix(app: OSXAPP, binary: MachOBinary) -> List[LibraryPathIssu
             LibraryPathIssue(
                 fixable=True,
                 details="Library ID with fixed path",
-                fix=partial(fix_lib_id, binary.path, Path("@rpath") / binary.id_.name),
+                fix=fix_lib_id(binary.path, Path("@rpath") / binary.id_.name),
             )
         ]
     else:
@@ -264,7 +276,7 @@ def check_libs_need_fix(app: OSXAPP, binary: MachOBinary) -> List[LibraryPathIss
                 LibraryPathIssue(
                     fixable=True,
                     details="Link to library not valid",
-                    fix=partial(fix_load_path, binary.path, lib, found),
+                    fix=fix_load_path(binary.path, lib, found),
                 )
             )
         else:
@@ -282,7 +294,7 @@ def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary, rc_path_delete: bool
                 RcpathIssue(
                     fixable=True,
                     details=f"Rcpath fix: {pth} -> {fixed}",
-                    fix=partial(fix_rpath, binary.path, pth, fixed),
+                    fix=fix_rpath(binary.path, pth, fixed),
                 )
             )
 
@@ -292,7 +304,7 @@ def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary, rc_path_delete: bool
                     RcpathIssue(
                         fixable=True,
                         details=f"DELETING rpath in {binary.path} pointing outside of binary and allowed system paths, this may indicate build issues {pth}.",
-                        fix=partial(remove_rpath, binary.path, pth),
+                        fix=remove_rpath(binary.path, pth),
                     )
                 )
             else:

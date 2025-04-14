@@ -7,7 +7,8 @@ from typing import Optional
 
 from packaging import version
 
-from ._util import BinaryObj, run_logged_act, run_logged_read
+from ._commands import Command
+from ._util import BinaryObj, run_logged
 
 _LOAD_DYLIB_REGEX = re.compile(r"\s*name (?P<dylib>.+) \(offset \d+\)$")
 _LOAD_RCPATH_REGEX = re.compile(r"\s*path (?P<rc_path>.+) \(offset \d+\)$")
@@ -216,12 +217,12 @@ def vtool_read(path: Path) -> Build:
           sdk 10.9
        ntools 0
     """
-    return Build.from_vtool_output(run_logged_read(["/usr/bin/vtool", "-show-build", str(path)]))
+    return Build.from_vtool_output(run_logged(Command(["/usr/bin/vtool", "-show-build", str(path)])))
 
 
-def vtool_overwrite(path: Path, build: Build, dry_run=True):
-    run_logged_act(
-        [
+def vtool_overwrite(path: Path, build: Build) -> Command:
+    cmd = Command(
+        args=[
             "/usr/bin/vtool",
             "-set-build-version",
             build.platform,
@@ -232,10 +233,9 @@ def vtool_overwrite(path: Path, build: Build, dry_run=True):
             str(path),
             str(path),
         ],
-        dry_run=dry_run,
     )
 
-    return True
+    return cmd
 
 
 @dataclass
@@ -248,14 +248,14 @@ class MachOBinary(BinaryObj):
 
 
 def otool_l(path: Path) -> tuple[LoadCommand, ...]:
-    out = run_logged_read(["otool", "-l", str(path)])
+    out = run_logged(Command(args=["otool", "-l", str(path)]))
     cmds = tuple(LoadCommand.from_otool_output(x) for x in _LOAD_COMMAND_REGEX.findall(out))
     return cmds
 
 
 def otool_h(path: Path) -> MachOHeader:
     try:
-        out = run_logged_read(["otool", "-h", str(path)])
+        out = run_logged(Command(["otool", "-h", str(path)]))
     except subprocess.CalledProcessError:
         return False
     return MachOHeader.from_otool_output(out)
@@ -327,44 +327,38 @@ def parse_macho(some_path: Path):
     return MachOBinary(some_path, header, paths, libs, build, lib_id)
 
 
-def fix_lib_id(library_path: Path, new_path: Path, dry_run=True):
+def fix_lib_id(library_path: Path, new_path: Path) -> Command:
     args = ["install_name_tool", "-id", str(new_path), str(library_path)]
-    run_logged_act(args, dry_run=dry_run)
-    return True
+    return Command(args=args)
 
 
-def fix_load_path(library_path: Path, dependency: Path, new_path: Path, dry_run=True):
+def fix_load_path(library_path: Path, dependency: Path, new_path: Path) -> Command:
     args = ["install_name_tool", "-change", str(dependency), str(new_path), str(library_path)]
-    run_logged_act(args, dry_run)
-    return True
+    return Command(args=args)
 
 
-def remove_rpath(library_path, rpath, dry_run=True):
+def remove_rpath(library_path, rpath) -> Command:
     args = ["install_name_tool", "-delete_rpath", str(rpath), str(library_path)]
-    run_logged_act(args, dry_run=dry_run)
-    return True
+    return Command(args=args)
 
 
-def fix_rpath(library_path, old_rpath, new_rpath, dry_run=True):
+def fix_rpath(library_path, old_rpath, new_rpath) -> Command:
     args = ["install_name_tool", "-rpath", str(old_rpath), str(new_rpath), str(library_path)]
-    run_logged_act(args, dry_run=dry_run)
-    return True
+    return Command(args=args)
 
 
-def sign_impl(entitlement_file, developer_id, path, dry_run):
-    run_logged_act(
-        [
-            "/usr/bin/codesign",
-            "--entitlements",
-            str(entitlement_file),
-            "--timestamp",
-            "-o",
-            "runtime",
-            "-f",
-            "-s",
-            developer_id,
-            str(path),
-        ],
-        dry_run=dry_run,
-        intends_side_effect=True,
-    )
+def sign_impl(entitlement_file, developer_id, path) -> Command:
+    args = [
+        "/usr/bin/codesign",
+        "--entitlements",
+        str(entitlement_file),
+        "--timestamp",
+        "-o",
+        "runtime",
+        "-f",
+        "-s",
+        developer_id,
+        str(path),
+    ]
+
+    return Command(args=args)

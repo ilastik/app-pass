@@ -1,15 +1,14 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
-if TYPE_CHECKING:
-    from ._macho import MachOBinary
+from ._commands import Command
 
 
 @dataclass
 class Issue:
     fixable: bool
     details: str
-    fix: Optional[Callable[[], bool]] = None
+    fix: Optional[Command] = None
 
 
 @dataclass

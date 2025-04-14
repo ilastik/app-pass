@@ -1,71 +1,18 @@
-import json
 import logging
 from argparse import ArgumentParser, Namespace
-from contextlib import ExitStack
 from functools import partial
-from itertools import chain
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Sequence
 
 import structlog
 from rich.console import Console
 from rich.text import Text
 
 from app_pass._app import OSXAPP
+from app_pass._commands import Command
 from app_pass._issues import Issue
 from app_pass._macho import sign_impl
-
-shared_options: Dict[str, int | None | Path] = dict(verbose=0, json_cmd_out=None, sh_cmd_out=None)
-
-_PROCESSORS: List[Callable] = []
-
-
-class SHLogger:
-    def __init__(self, filename: Path):
-        self._filename: Path = filename
-        self._handle = None
-
-    def __call__(self, _logger, _method_name, event_dict: dict):
-        if self._handle is None:
-            return event_dict
-        if event_dict.get("side_effect", None):
-            if cmd := event_dict.get("command", None):
-                self._handle.write(f"{cmd}\n")
-        return event_dict
-
-    def __enter__(self):
-        self._handle = self._filename.open("w")
-
-    def __exit__(self, *_):
-        if self._handle:
-            self._handle.close()
-
-
-class JSONLogger:
-    def __init__(self, filename: Path):
-        self._filename: Path = filename
-        self._handle = None
-        self._div = ""
-
-    def __call__(self, _logger, _method_name, event_dict: dict):
-        if self._handle is None:
-            return event_dict
-        if event_dict.get("side_effect", None):
-            if cmd := event_dict.get("command", None):
-                msg = json.dumps(dict(command=cmd))
-                self._handle.write(f"{self._div}\n{msg}")
-                if self._div == "":
-                    self._div = ","
-        return event_dict
-
-    def __enter__(self):
-        self._handle = self._filename.open("w")
-        self._handle.write("[\n")
-
-    def __exit__(self, *_):
-        if self._handle:
-            self._handle.write("]\n")
-            self._handle.close()
+from app_pass._util import run_commands, serialize_to_sh
 
 
 def _drop_lvl(level, _logger, _method_name, event_dict: dict):
@@ -75,7 +22,7 @@ def _drop_lvl(level, _logger, _method_name, event_dict: dict):
     return event_dict
 
 
-def configure_logging(verbose: int, json_cmd_out: Optional[Path] = None, sh_cmd_out: Optional[Path] = None):
+def configure_logging(verbose: int):
     verbosity = {0: logging.ERROR, 1: logging.WARNING, 2: logging.INFO, 3: logging.DEBUG}
     processors = [
         structlog.stdlib.add_log_level_number,
@@ -83,14 +30,9 @@ def configure_logging(verbose: int, json_cmd_out: Optional[Path] = None, sh_cmd_
         structlog.stdlib.render_to_log_kwargs,
         structlog.dev.ConsoleRenderer(),
     ]
-    if sh_cmd_out:
-        _PROCESSORS.append(SHLogger(sh_cmd_out))
-
-    if json_cmd_out:
-        _PROCESSORS.append(JSONLogger(json_cmd_out))
 
     structlog.configure(
-        processors=_PROCESSORS + processors,
+        processors=processors,
         wrapper_class=structlog.BoundLogger,
         logger_factory=structlog.PrintLoggerFactory(),
     )
@@ -171,10 +113,10 @@ def check(app: OSXAPP):
 
     Check all binaries are signed.
     """
-    fix(app, dry_run=True)
+    return fix(app)
 
 
-def fix(app: OSXAPP, rc_path_delete: bool = False, force_update: bool = False, dry_run: bool = False):
+def fix(app: OSXAPP, rc_path_delete: bool = False, force_update: bool = False) -> list[Command]:
     """Fix issues in mach-o libraries .app bundle
 
     Remove paths that point outside the app.
@@ -187,54 +129,64 @@ def fix(app: OSXAPP, rc_path_delete: bool = False, force_update: bool = False, d
     issues.extend(app.check_jar_binaries(force_update=force_update))
     print_summary(app, issues)
 
-    with ExitStack() as xstack:
-        for ctx in _PROCESSORS:
-            xstack.enter_context(ctx)
-        for issue in issues:
-            if issue.fixable:
-                assert issue.fix
-                issue.fix(dry_run=dry_run)
-
     unfixable = [issue for issue in issues if not issue.fixable]
-
     print_unfixable(app, unfixable)
 
+    commands: list[Command] = []
+    for issue in issues:
+        if issue.fixable:
+            assert issue.fix is not None
+            commands.append(issue.fix)
 
-def sign(app: OSXAPP, entitlement_file: Path, developer_id: str, dry_run: bool = False):
-    with ExitStack() as xstack:
-        for ctx in _PROCESSORS:
-            xstack.enter_context(ctx)
-
-        for jar in app.jars:
-            jar.sign(entitlement_file, developer_id, dry_run)
-
-        for binary in chain(app.macho_binaries, app.jars):
-            sign_impl(entitlement_file, developer_id, binary.path, dry_run)
-
-        sign_impl(entitlement_file, developer_id, app.bundle_exe, dry_run)
-        sign_impl(entitlement_file, developer_id, app.root, dry_run)
+    return commands
 
 
-def fixsign(app: OSXAPP, entitlement_file: Path, developer_id: str, rc_path_delete: bool=False, force_update: bool=False, dry_run: bool = False):
-    fix(app, rc_path_delete, force_update, dry_run)
-    sign(app, entitlement_file, developer_id, dry_run)
+def sign(app: OSXAPP, entitlement_file: Path, developer_id: str) -> list[Command]:
+    # For jars, we need to sign and repack before signing  all
+    commands: list[Command] = []
+    for jar in app.jars:
+        commands.extend(jar.sign(entitlement_file, developer_id))
+
+    for binary in app.macho_binaries:
+        commands.append(sign_impl(entitlement_file, developer_id, binary.path))
+
+    commands.append(sign_impl(entitlement_file, developer_id, app.bundle_exe))
+    commands.append(sign_impl(entitlement_file, developer_id, app.root))
+
+    return commands
+
+
+def fixsign(app: OSXAPP, entitlement_file: Path, developer_id: str, rc_path_delete: bool=False, force_update: bool=False):
+    commands = fix(app, rc_path_delete, force_update)
+    commands.extend(sign(app, entitlement_file, developer_id))
+
+    return commands
 
 def main():
     args = parse_args()
-    configure_logging(verbose=args.verbose, json_cmd_out=args.json_output, sh_cmd_out=args.sh_output)
+    configure_logging(verbose=args.verbose)
 
+    commands: list[Command] = []
     with OSXAPP.from_path(args.app_bundle) as app:
         match args.action:
             case "check":
-                return check(app)
+                # force dry_run to be true for now
+                args.dry_run = True
+                commands = check(app)
             case "fix":
-                return fix(app, args.rc_path_delete, args.force_update, args.dry_run)
+                commands = fix(app, args.rc_path_delete, args.force_update)
             case "sign":
-                return sign(app, args.entitlement_file, args.developer_id, args.dry_run)
+                commands = sign(app, args.entitlement_file, args.developer_id)
             case "fixsign":
-                return fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update, args.dry_run)
+                commands = fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update)
             case _:
                 raise ValueError(f"Unexpected action {args.action}")
+
+        if args.sh_output:
+            serialize_to_sh(commands, args.sh_output)
+
+        if not args.dry_run:
+            run_commands(commands)
 
 
 if __name__ == "__main__":

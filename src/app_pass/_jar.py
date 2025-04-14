@@ -6,11 +6,15 @@ from functools import partial
 from pathlib import Path
 from typing import Optional
 
+import structlog
 from rich.progress import Progress
 
+from app_pass._commands import Command
 from app_pass._macho import MachOBinary, parse_macho, sign_impl
 
-from ._util import BinaryObj, BinaryType, is_binary, run_logged_act
+from ._util import BinaryObj, BinaryType, is_binary, run_logged
+
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -24,7 +28,7 @@ class Jar(BinaryObj):
         if progress:
             task = progress.add_task(f"tempdir({p.name})", total=None)
         t = tempfile.mkdtemp()
-        run_logged_act(["ditto", "-x", "-k", str(p), t], dry_run=False, intends_side_effect=True)
+        run_logged(Command(["ditto", "-x", "-k", str(p), t]))
 
         files = list(Path(t).glob("**/*"))
 
@@ -38,7 +42,7 @@ class Jar(BinaryObj):
             if binary_type == BinaryType.MACHO:
                 machos.append(parse_macho(file))
             elif binary_type == BinaryType.JAR:
-                print(f"Nested jar in {p}: {file} - not expected")
+                logger.warning(f"Nested jar in {p}: {file} - not expected")
 
             if progress:
                 progress.advance(task, 1)
@@ -50,20 +54,25 @@ class Jar(BinaryObj):
 
         return Jar(p, Path(t), machos)
 
-    def sign(self, entitlement_file, developer_id, dry_run):
-        for binary in self.binaries:
-            sign_impl(entitlement_file, developer_id, binary.path, dry_run=False)
-        # run_logged_act(["mv", str(self.path), str(self.path.with_suffix(".bak"))], dry_run=False, intends_side_effect=True)
+    def sign(self, entitlement_file, developer_id) -> list[Command]:
+        # nothing needs to be done if there aren't any binaries
+        if not self.binaries:
+            return []
 
-    def repack(self):
-        run_logged_act(
-            ["ditto", "-v", "-c", "-k", str(self.temp_path), self.path.with_suffix(".zip").name],
-            dry_run=False,
-            intends_side_effect=False,
-            cwd=str(self.temp_path),
+        # include the unpack command, too, for serialization to .sh
+        sign_commands = [Command(["ditto", "-x", "-k", str(self.path), str(self.temp_path)], run_python=False)]
+
+        for binary in self.binaries:
+            sign_commands.append(sign_impl(entitlement_file, developer_id, binary.path))
+
+        sign_commands.extend(self.repack())
+        sign_commands.append(sign_impl(entitlement_file, developer_id, self.path))
+        return sign_commands
+
+    def repack(self) -> list[Command]:
+        pack_command = Command(
+            args=["ditto", "-v", "-c", "-k", str(self.temp_path), self.path.with_suffix(".zip").name],
+            cwd=self.temp_path,
         )
-        run_logged_act(
-            ["mv", str(self.temp_path / self.path.with_suffix(".zip").name), str(self.path)],
-            dry_run=False,
-            intends_side_effect=True,
-        )
+        move_command = Command(args=["mv", str(self.temp_path / self.path.with_suffix(".zip").name), str(self.path)])
+        return [pack_command, move_command]

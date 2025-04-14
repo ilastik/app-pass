@@ -11,7 +11,6 @@ class Command:
     comment: Optional[str] = None
     run_python: bool = True
 
-
     def to_sh(self) -> list[str]:
         cmds = [" ".join(self.args)]
         if self.cwd:

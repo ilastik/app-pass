@@ -28,13 +28,13 @@ class BinaryObj:
 
 
 def run_logged(command: Command) -> str:
-    logger.debug("Executing", command=command.to_dict())
+    logger.debug("Executing", command=command.args)
 
     out = subprocess.run(command.args, stdout=subprocess.PIPE, stdin=subprocess.PIPE, cwd=command.cwd)
     if out.returncode != 0:
         logger.warning(
             "Nonzero exit code from command",
-            command=command.to_dict(),
+            command=command.args,
             exit_code=out.returncode,
             stderr=out.stderr.decode("utf-8") if out.stderr else "",
             output=out.stdout.decode("utf-8") if out.stdout else "",
@@ -59,7 +59,8 @@ def run_logged(command: Command) -> str:
 
 def run_commands(commands: list[Command]):
     for command in commands:
-        run_logged(command)
+        if command.run_python:
+            run_logged(command)
 
 
 def serialize_to_sh(commands: list[Command], sh_cmd_out: pathlib.Path):
@@ -70,10 +71,6 @@ def serialize_to_sh(commands: list[Command], sh_cmd_out: pathlib.Path):
         f.write("\n".join(cmds))
 
 
-def serialize_to_json(self, json_cmd_out: pathlib.Path):
-    json_content = json.loads(json_cmd_out.read_text())
-
-
 def is_binary(path: pathlib.Path) -> BinaryType:
     if path.suffix in (".a", ".o"):
         logger.info("Ignoring .a, and .o files", library=path)
@@ -81,7 +78,7 @@ def is_binary(path: pathlib.Path) -> BinaryType:
 
     if path.suffix in (".py", ".txt", ".md", ".h", ".class", ".cpp", ".hpp", ".class"):
         return BinaryType.NONE
-    file_out = run_logged_read(["file", str(path)]).lower()
+    file_out = run_logged(Command(["file", str(path)])).lower()
     if "mach-o" in file_out:
         if "architectures" in file_out:
             logger.warning(f"Multiple architectures in file", filename=path)
