@@ -136,7 +136,6 @@ def parse_args() -> Namespace:
 
     common_args = ArgumentParser(add_help=False)
     common_args.add_argument("-v", "--verbose", action="count", default=0)
-    common_args.add_argument("--json-output", type=Path)
     common_args.add_argument("--sh-output", type=Path)
     common_args.add_argument("--dry-run", action="store_true")
     common_args.add_argument("app_bundle", type=Path)

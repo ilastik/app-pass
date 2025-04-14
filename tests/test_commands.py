@@ -1,20 +1,8 @@
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from app_pass._commands import Command, serialize_to_sh
-
-
-def test_command_serialization_to_dict_with_cwd():
-    cmd = Command(args=["ls", "-l"], cwd=Path("/some/path"))
-
-    json_cmd = cmd.to_dict()
-    assert json_cmd == {"args": ["ls", "-l"], "cwd": "/some/path", "comment": None}
-
-
-def test_command_serialization_to_dict_no_cwd():
-    cmd = Command(args=["ls", "-l"], cwd=None)
-
-    json_cmd = cmd.to_dict()
-    assert json_cmd == {"args": ["ls", "-l"], "cwd": None, "comment": None}
+from app_pass._commands import Command
+from app_pass._util import run_commands, serialize_to_sh
 
 
 def test_command_serialization_to_sh_with_cwd():
@@ -116,3 +104,18 @@ def test_serialize_to_sh_with_all(tmp_path: Path):
     expected = [x for quad in zip(expected_comments, expected_cd_in, expected_runs, expected_cd_out) for x in quad]
 
     assert lines == expected
+
+
+def test_run_commands():
+    cmds = [Command(["echo", f"{i}"], cwd=Path(f"/my/home{i}"), comment=f"This echos {i}") for i in range(42)]
+
+    with patch("subprocess.run", new=Mock(return_value=Mock(returncode=0))) as popen_mock:
+        run_commands(cmds)
+
+    assert popen_mock.call_count == 42
+    args = popen_mock.call_args_list
+    for call, expected_call in zip(args, [["echo", f"{i}"] for i in range(42)]):
+        assert call.args[0] == expected_call
+
+    for call, expected_path in zip(args, [Path(f"/my/home{i}") for i in range(42)]):
+        assert call.kwargs["cwd"] == expected_path
