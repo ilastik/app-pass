@@ -165,14 +165,14 @@ class OSXAPP:
                         valid_build = binary.build.valid_build(self.default_build)
                         issue = BuildIssue(
                             fixable=True,
-                            details="Missing build number.",
+                            details=f"({binary.path} ({jar.path}): Missing build number.",
                             fix=vtool_overwrite(binary.path, valid_build),
                         )
                     elif force_update:
                         valid_build = binary.build.valid_build(self.default_build, overwrite=force_update)
                         issue = BuildIssue(
                             fixable=True,
-                            details="Missing build number.",
+                            details=f"({binary.path} ({jar.path}): Missing build number.",
                             fix=vtool_overwrite(binary.path, valid_build),
                         )
                     else:
@@ -180,7 +180,7 @@ class OSXAPP:
                             fixable=False,
                             details=(
                                 "Probably sdk for build outdated - gatekeeper requires >=10.9 "
-                                f"({binary.path}: {binary.build.platform=} {binary.build.sdk=} {binary.build.minos=}). "
+                                f"({binary.path} ({jar.path}): {binary.build.platform=} {binary.build.sdk=} {binary.build.minos=}). "
                                 "Solving this properly means rebuilding the binary with a deployment target 10.9 "
                                 "(for x64) or 11.0 (for arm64). Alternatively you can try the --force-update flag, that "
                                 "simply overwrites the property."
