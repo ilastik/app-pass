@@ -84,7 +84,7 @@ def parse_args() -> Namespace:
 
     fix_args = ArgumentParser(add_help=False)
     fix_args.add_argument("--rc-path-delete", action="store_true")
-    fix_args.add_argument("--force_update", action="store_true")
+    fix_args.add_argument("--force-update", action="store_true")
 
     sign_args = ArgumentParser(add_help=False)
     sign_args.add_argument("entitlement_file", type=Path)
