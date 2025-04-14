@@ -15,6 +15,6 @@ jobs:
         with:
             python-version: '3.10'
       - name: install in editable mode
-        run: pip install -e . && pip install '.[dev]'
+        run: pip install -e '.[test]'
       - name: pytest
         run: pytest -v

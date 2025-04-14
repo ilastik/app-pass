@@ -1,10 +1,8 @@
 import logging
 from argparse import ArgumentParser, Namespace
-from functools import partial
 from pathlib import Path
 from typing import Sequence
 
-import structlog
 from rich.console import Console
 from rich.text import Text
 
@@ -15,27 +13,9 @@ from app_pass._macho import sign_impl
 from app_pass._util import run_commands, serialize_to_sh
 
 
-def _drop_lvl(level, _logger, _method_name, event_dict: dict):
-    if event_dict["level_number"] < level:
-        raise structlog.DropEvent
-
-    return event_dict
-
-
 def configure_logging(verbose: int):
     verbosity = {0: logging.ERROR, 1: logging.WARNING, 2: logging.INFO, 3: logging.DEBUG}
-    processors = [
-        structlog.stdlib.add_log_level_number,
-        partial(_drop_lvl, verbosity[verbose]),
-        structlog.stdlib.render_to_log_kwargs,
-        structlog.dev.ConsoleRenderer(),
-    ]
-
-    structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.BoundLogger,
-        logger_factory=structlog.PrintLoggerFactory(),
-    )
+    logging.basicConfig(format="%(levelname)s:%(message)s", level=verbosity[verbose])
 
 
 def print_summary(app: OSXAPP, issues: Sequence[Issue]):
@@ -156,11 +136,14 @@ def sign(app: OSXAPP, entitlement_file: Path, developer_id: str) -> list[Command
     return commands
 
 
-def fixsign(app: OSXAPP, entitlement_file: Path, developer_id: str, rc_path_delete: bool=False, force_update: bool=False):
+def fixsign(
+    app: OSXAPP, entitlement_file: Path, developer_id: str, rc_path_delete: bool = False, force_update: bool = False
+):
     commands = fix(app, rc_path_delete, force_update)
     commands.extend(sign(app, entitlement_file, developer_id))
 
     return commands
+
 
 def main():
     args = parse_args()

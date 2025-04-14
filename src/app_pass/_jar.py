@@ -1,4 +1,5 @@
 import atexit
+import logging
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -6,7 +7,6 @@ from functools import partial
 from pathlib import Path
 from typing import Optional
 
-import structlog
 from rich.progress import Progress
 
 from app_pass._commands import Command
@@ -14,7 +14,7 @@ from app_pass._macho import MachOBinary, parse_macho, sign_impl
 
 from ._util import BinaryObj, BinaryType, is_binary, run_logged
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 @dataclass
