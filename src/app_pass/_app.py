@@ -1,9 +1,9 @@
+import logging
 from dataclasses import dataclass
-from functools import cached_property, partial
+from functools import cached_property
 from pathlib import Path
 from typing import List, Optional
 
-import structlog
 from lxml import etree
 from rich.progress import Progress
 
@@ -12,7 +12,7 @@ from ._jar import Jar
 from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, remove_rpath, vtool_overwrite
 from ._util import BinaryType, iter_all_binaries
 
-logger = structlog.get_logger()
+logger = logging.getLogger(__name__)
 
 
 def parse_plist(plist: Path):
@@ -71,7 +71,6 @@ class OSXAPP:
         assert self.bundle_exe.exists(), self.bundle_exe
         assert self.bundle_exe.is_file()
         assert self.bundle_exe.is_relative_to(self.root), self.bundle_exe
-
 
     @cached_property
     def libraries(self) -> dict[str, MachOBinary]:
@@ -139,19 +138,9 @@ class OSXAPP:
                     )
                 issues.append(issue)
                 if issue.fixable:
-                    logger.info(
-                        "Issue found",
-                        library=macho_binary.path,
-                        issue_type="build_version_issue",
-                        fixable=issue.fixable,
-                    )
+                    logger.info(f"Issue found: {macho_binary.path}, {type(issue)}, {issue.fixable=}")
                 else:
-                    logger.warning(
-                        "Issue found",
-                        library=macho_binary.path,
-                        issue_type="build_version_issue",
-                        fixable=issue.fixable,
-                    )
+                    logger.warning(f"Issue found: {macho_binary.path}, {type(issue)}, {issue.fixable=}")
 
         return issues
 
@@ -188,19 +177,9 @@ class OSXAPP:
                         )
                     issues.append(issue)
                     if issue.fixable:
-                        logger.info(
-                            "Issue found",
-                            library=binary.path,
-                            issue_type="build_version_issue",
-                            fixable=issue.fixable,
-                        )
+                        logger.info(f"Issue found: {binary.path}, {type(issue)}, {issue.fixable=}")
                     else:
-                        logger.warning(
-                            "Issue found",
-                            library=binary.path,
-                            issue_type="build_version_issue",
-                            fixable=issue.fixable,
-                        )
+                        logger.warning(f"Issue found: {binary.path}, {type(issue)}, {issue.fixable=}")
 
         return issues
 

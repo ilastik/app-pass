@@ -19,7 +19,6 @@ requires-python = ">=3.10"
 
 dependencies = [
   "rich",
-  "structlog",
 ]
 
 [project.optional-dependencies]
