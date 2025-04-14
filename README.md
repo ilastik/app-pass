@@ -6,6 +6,11 @@ Originally to sign the bundle for [ilastik](https://ilastik.org).
 Prerequisite: You have built your app, and it runs on your own machine ;).
 Problem: You try to sign/notarize but get back many errors and are unsure how to resolve them.
 
+Before you consider using this, you might get away without it by:
+
+    * using [constructor](https://github.com/conda/constructor) if your stack is conda-based. Constructor does ad-hoc signing on install.
+
+
 Tested so far with conda-based python apps, and java apps.
 
 `app-pass` can perform various fixes on binaries, and sign `.app` bundles.
@@ -38,7 +43,7 @@ In general the workflow is roughly in these stages:
 
 ## Usage
 
-<details><summary>**If your bundle includes `.jar` files**</summary>
+<details><summary><b>If your bundle includes `.jar` files</b></summary>
 
 These need to be extracted and can have case sensitive file contents.
 Per default, the file system on the mac is _not_ case sensitive!
@@ -77,41 +82,44 @@ An example how we would sign our ilastik .app bundle:
 ```bash
 # unzip unsigned app bundle after build
 ditto -x -k ~/Downloads/ilastik-1.4.1rc3-arm64-OSX-unsigned.zip .
-# this creates the bundle folder ilastik-1.4.1rc3-arm64-OSX.app that we will be working with
+# this creates the bundle folder ilastik-1.4.1rc3-arm64-OSX.app that we will be
+# working with
 
-# fix and sign contents - for ilastik, we decide to remove rpaths that point outside the bundle
-# so we add --rc-path-delete
+# fix and sign contents - for ilastik, we decide to remove rpaths that point
+# outside the bundle so we add --rc-path-delete
 app-pass fixsign \
-   --sh-output "ilastik-1.4.1rc3-arm64-OSX-sign.sh" \
-   --rc-path-delete \
-   ilastik-1.4.1rc3-arm64-OSX.app \
-   entitlements.plist \
-   "Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>"
+    --sh-output "ilastik-1.4.1rc3-arm64-OSX-sign.sh" \
+    --rc-path-delete \
+    ilastik-1.4.1rc3-arm64-OSX.app \
+    entitlements.plist \
+    "Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>"
 
 # pack again to get ready for notarization
-/usr/bin/ditto -v -c -k --keepParent ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX-tosign.zip
+/usr/bin/ditto -v -c -k --keepParent \
+    ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX-tosign.zip
 
 # send off to apple:
 xcrun notarytool submit \
-      --keychain-profile <your-keychain-profile> \
-      --keychain <path-to-keychain> \
-      --apple-id  <email-address-of-dev-account@provider.ext> \
-      --team-id <your-team-id> \
-      "ilastik-1.4.1rc3-arm64-OSX-tosign.zip"
+    --keychain-profile <your-keychain-profile> \
+    --keychain <path-to-keychain> \
+    --apple-id  <email-address-of-dev-account@provider.ext> \
+    --team-id <your-team-id> \
+    "ilastik-1.4.1rc3-arm64-OSX-tosign.zip"
 
 # wait for notarization is complete
 xcrun notarytool wait \
-      --keychain-profile <your-keychain-profile> \
-      --keychain <path-to-keychain> \
-      --apple-id  <email-address-of-dev-account@provider.ext> \
-      --team-id <your-team-id> \
-      <notarization-request-id>
+    --keychain-profile <your-keychain-profile> \
+    --keychain <path-to-keychain> \
+    --apple-id  <email-address-of-dev-account@provider.ext> \
+    --team-id <your-team-id> \
+    <notarization-request-id>
 
 # once this is done, staple:
 xcrun stapler staple ilastik-1.4.1rc3-arm64-OSX.app
 
 # finally zip again for distribution
-/usr/bin/ditto -v -c -k --keepParent ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX.zip
+/usr/bin/ditto -v -c -k --keepParent \
+    ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX.zip
 ```
 
 ## Good reading material on the topic of signing/notarizing
