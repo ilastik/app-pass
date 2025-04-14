@@ -167,26 +167,26 @@ def main():
     configure_logging(verbose=args.verbose)
 
     commands: list[Command] = []
-    with OSXAPP.from_path(args.app_bundle) as app:
-        match args.action:
-            case "check":
-                # force dry_run to be true for now
-                args.dry_run = True
-                commands = check(app)
-            case "fix":
-                commands = fix(app, args.rc_path_delete, args.force_update)
-            case "sign":
-                commands = sign(app, args.entitlement_file, args.developer_id)
-            case "fixsign":
-                commands = fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update)
-            case _:
-                raise ValueError(f"Unexpected action {args.action}")
+    app = OSXAPP.from_path(args.app_bundle)
+    match args.action:
+        case "check":
+            # force dry_run to be true for now
+            args.dry_run = True
+            commands = check(app)
+        case "fix":
+            commands = fix(app, args.rc_path_delete, args.force_update)
+        case "sign":
+            commands = sign(app, args.entitlement_file, args.developer_id)
+        case "fixsign":
+            commands = fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update)
+        case _:
+            raise ValueError(f"Unexpected action {args.action}")
 
-        if args.sh_output:
-            serialize_to_sh(commands, args.sh_output)
+    if args.sh_output:
+        serialize_to_sh(commands, args.sh_output)
 
-        if not args.dry_run:
-            run_commands(commands)
+    if not args.dry_run:
+        run_commands(commands)
 
 
 if __name__ == "__main__":
