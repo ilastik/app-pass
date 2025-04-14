@@ -8,8 +8,18 @@ Problem: You try to sign/notarize but get back many errors and are unsure how to
 
 Before you consider using this, you might get away without it by:
 
-    * using [constructor](https://github.com/conda/constructor) if your stack is conda-based. Constructor does ad-hoc signing on install.
+#### Doing everything via XCODE** :)
 
+#### Your app is Python-based
+ * using [constructor](https://github.com/conda/constructor) if your stack is conda-based. Constructor does ad-hoc signing on install.
+ * using something like [briefcase](https://github.com/beeware/briefcase).
+ * [encrust](https://github.com/glyph/Encrust) seems also to work.
+
+#### Your app is Java-based
+ * ???
+
+In any case, there are many reasons you can't use one of these alternatives and are left with a working .app that you can not sign.
+`app-pass` can help you no matter how you generated the app in the first place.
 
 Tested so far with conda-based python apps, and java apps.
 
