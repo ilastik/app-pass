@@ -7,6 +7,8 @@ from typing import Iterator, Tuple
 import structlog
 from rich.progress import Progress
 
+from ._commands import Command
+
 logger = structlog.get_logger()
 
 
@@ -21,45 +23,54 @@ class BinaryObj:
     path: pathlib.Path
 
 
-def run_logged_read(args: list[str], **kwargs) -> str:
-    return run_logged_act(args, dry_run=False, intends_side_effect=False, **kwargs)
+# def run_logged_read(args: list[str], **kwargs) -> str:
+#     return run_logged_act(args, dry_run=False, intends_side_effect=False, **kwargs)
 
 
-def run_logged_act(args: list[str], dry_run=True, intends_side_effect=True, **kwargs) -> str:
-    logger.debug("About to execute", command=" ".join(args), side_effect=intends_side_effect)
-    if dry_run:
-        return ""
+def run_logged(command: Command) -> str:
+    logger.debug("Executing", command=command.args)
 
-    out = subprocess.run(args, stdout=subprocess.PIPE, stdin=subprocess.PIPE, **kwargs)
+    out = subprocess.run(command.args, stdout=subprocess.PIPE, stdin=subprocess.PIPE, cwd=command.cwd)
     if out.returncode != 0:
         logger.warning(
             "Nonzero exit code from command",
-            command=" ".join(args),
+            command=command.args,
             exit_code=out.returncode,
             stderr=out.stderr.decode("utf-8") if out.stderr else "",
             output=out.stdout.decode("utf-8") if out.stdout else "",
         )
         raise subprocess.CalledProcessError(
             returncode=out.returncode,
-            cmd=" ".join(args),
+            cmd=command.args,
             stderr=out.stderr.decode("utf-8") if out.stderr else "",
             output=out.stdout.decode("utf-8") if out.stdout else "",
         )
 
-    if intends_side_effect:
-        log_fun = logger.info
-    else:
-        log_fun = logger.debug
-
-    log_fun(
+    logger.info(
         "Successful command",
-        command=" ".join(args),
+        command=" ".join(command.args),
         exit_code=out.returncode,
         stdout=out.stdout.decode("utf-8") if out.stdout else "",
         stderr=out.stderr.decode("utf-8") if out.stderr else "",
     )
 
     return out.stdout.decode("utf-8")
+
+
+def run_commands(commands: list[Command]):
+    for command in commands:
+        if command.run_python:
+            run_logged(command)
+
+
+def serialize_to_sh(commands: list[Command], sh_cmd_out: pathlib.Path):
+    cmds = []
+    for cmd in commands:
+        cmds.extend(cmd.to_sh())
+    if sh_cmd_out.exists():
+        logger.warning(f"Found {sh_cmd_out} - overwriting.")
+    
+    sh_cmd_out.write_text("\n".join(cmds))
 
 
 def is_binary(path: pathlib.Path) -> BinaryType:
@@ -69,7 +80,7 @@ def is_binary(path: pathlib.Path) -> BinaryType:
 
     if path.suffix in (".py", ".txt", ".md", ".h", ".class", ".cpp", ".hpp", ".class"):
         return BinaryType.NONE
-    file_out = run_logged_read(["file", str(path)]).lower()
+    file_out = run_logged(Command(["file", str(path)])).lower()
     if "mach-o" in file_out:
         if "architectures" in file_out:
             logger.warning(f"Multiple architectures in file", filename=path)
