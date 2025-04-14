@@ -9,7 +9,8 @@ authors = [
   {name = "Dominik Kutra", email = "dominik.kutra@embl.de"}
 ]
 maintainers = [
-  {name = "Dominik Kutra", email = "dominik.kutra@embl.de"}
+  {name = "Dominik Kutra", email = "dominik.kutra@embl.de"},
+  {name = "ilastik team", email = "team@ilastik.org"},
 ]
 description = "Tool to ensure an .app bundle pass the Gatekeeper on MacOS."
 readme = "README.md"
