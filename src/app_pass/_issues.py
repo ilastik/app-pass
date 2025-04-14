@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import Optional
 
 from ._commands import Command
 

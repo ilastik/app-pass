@@ -2,7 +2,7 @@ import enum
 import pathlib
 import subprocess
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterator, Tuple
+from typing import Iterator, Tuple
 
 import structlog
 from rich.progress import Progress
@@ -67,8 +67,10 @@ def serialize_to_sh(commands: list[Command], sh_cmd_out: pathlib.Path):
     cmds = []
     for cmd in commands:
         cmds.extend(cmd.to_sh())
-    with open(sh_cmd_out, "w+") as f:
-        f.write("\n".join(cmds))
+    if sh_cmd_out.exists():
+        logger.warning(f"Found {sh_cmd_out} - overwriting.")
+    
+    sh_cmd_out.write_text("\n".join(cmds))
 
 
 def is_binary(path: pathlib.Path) -> BinaryType:
