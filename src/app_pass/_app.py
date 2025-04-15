@@ -7,6 +7,8 @@ from typing import List, Optional
 from lxml import etree
 from rich.progress import Progress
 
+from app_pass._commands import Command
+
 from ._issues import BuildIssue, Issue, LibraryPathIssue, RcpathIssue
 from ._jar import Jar
 from ._macho import Build, MachOBinary, fix_lib_id, fix_load_path, fix_rpath, parse_macho, remove_rpath, vtool_overwrite
@@ -71,6 +73,22 @@ class OSXAPP:
         assert self.bundle_exe.exists(), self.bundle_exe
         assert self.bundle_exe.is_file()
         assert self.bundle_exe.is_relative_to(self.root), self.bundle_exe
+
+    @property
+    def jar_extract(self) -> list[Command]:
+        commands = []
+        for jar in self.jars:
+            if jar.binaries:
+                commands.extend(jar.create_commands)
+        return commands
+
+    @property
+    def jar_repack(self) -> list[Command]:
+        commands = []
+        for jar in self.jars:
+            if jar.binaries:
+                commands.extend(jar.repack())
+        return commands
 
     @cached_property
     def libraries(self) -> dict[str, MachOBinary]:

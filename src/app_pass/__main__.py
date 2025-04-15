@@ -96,7 +96,7 @@ def check(app: OSXAPP):
     return fix(app)
 
 
-def fix(app: OSXAPP, rc_path_delete: bool = False, force_update: bool = False) -> list[Command]:
+def fix(app: OSXAPP, rc_path_delete: bool = False, force_update: bool = False, need_repack=True) -> list[Command]:
     """Fix issues in mach-o libraries .app bundle
 
     Remove paths that point outside the app.
@@ -118,6 +118,8 @@ def fix(app: OSXAPP, rc_path_delete: bool = False, force_update: bool = False) -
             assert issue.fix is not None
             commands.append(issue.fix)
 
+    if need_repack:
+        commands.extend(app.jar_repack)
     return commands
 
 
@@ -126,6 +128,9 @@ def sign(app: OSXAPP, entitlement_file: Path, developer_id: str) -> list[Command
     commands: list[Command] = []
     for jar in app.jars:
         commands.extend(jar.sign(entitlement_file, developer_id))
+
+    # need to repack before signing the rest of the app
+    commands.extend(app.jar_repack)
 
     for binary in app.macho_binaries:
         commands.append(sign_impl(entitlement_file, developer_id, binary.path))
@@ -139,7 +144,7 @@ def sign(app: OSXAPP, entitlement_file: Path, developer_id: str) -> list[Command
 def fixsign(
     app: OSXAPP, entitlement_file: Path, developer_id: str, rc_path_delete: bool = False, force_update: bool = False
 ):
-    commands = fix(app, rc_path_delete, force_update)
+    commands = fix(app, rc_path_delete, force_update, need_repack=False)
     commands.extend(sign(app, entitlement_file, developer_id))
 
     return commands
@@ -151,17 +156,18 @@ def main():
 
     commands: list[Command] = []
     app = OSXAPP.from_path(args.app_bundle)
+    commands.extend(app.jar_extract)
     match args.action:
         case "check":
             # force dry_run to be true for now
             args.dry_run = True
-            commands = check(app)
+            commands.extend(check(app))
         case "fix":
-            commands = fix(app, args.rc_path_delete, args.force_update)
+            commands.extend(fix(app, args.rc_path_delete, args.force_update))
         case "sign":
-            commands = sign(app, args.entitlement_file, args.developer_id)
+            commands.extend(sign(app, args.entitlement_file, args.developer_id))
         case "fixsign":
-            commands = fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update)
+            commands.extend(fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update))
         case _:
             raise ValueError(f"Unexpected action {args.action}")
 

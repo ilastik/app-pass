@@ -50,23 +50,31 @@ class Jar(BinaryObj):
         if progress:
             progress.remove_task(task)
 
-        atexit.register(partial(shutil.rmtree, t, ignore_errors=True))
+        def _cleanup(t):
+            print(f"Cleaning up {t}")
+            shutil.rmtree(t, ignore_errors=True)
 
-        return Jar(p, Path(t), machos)
+        atexit.register(partial(_cleanup, t))
+
+        return Jar(path=p, temp_path=Path(t), binaries=machos)
+
+    @property
+    def create_commands(self) -> list[Command]:
+        return [
+            Command(["mkdir", "-p", str(self.temp_path)], run_python=False),
+            Command(["ditto", "-x", "-k", str(self.path), str(self.temp_path)], run_python=False)
+        ]
 
     def sign(self, entitlement_file, developer_id) -> list[Command]:
         # nothing needs to be done if there aren't any binaries
         if not self.binaries:
             return []
 
-        # include the unpack command, too, for serialization to .sh
-        sign_commands = [Command(["ditto", "-x", "-k", str(self.path), str(self.temp_path)], run_python=False)]
+        sign_commands = []
 
         for binary in self.binaries:
             sign_commands.append(sign_impl(entitlement_file, developer_id, binary.path))
 
-        sign_commands.extend(self.repack())
-        sign_commands.append(sign_impl(entitlement_file, developer_id, self.path))
         return sign_commands
 
     def repack(self) -> list[Command]:
