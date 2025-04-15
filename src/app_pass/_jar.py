@@ -65,8 +65,7 @@ class Jar(BinaryObj):
         if not self.binaries:
             return []
 
-        # include the unpack command, too, for serialization to .sh
-        sign_commands = [Command(["ditto", "-x", "-k", str(self.path), str(self.temp_path)], run_python=False)]
+        sign_commands = []
 
         for binary in self.binaries:
             sign_commands.append(sign_impl(entitlement_file, developer_id, binary.path))
