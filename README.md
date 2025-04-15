@@ -51,6 +51,8 @@ In general the workflow is roughly in these stages:
 
 `app-pass` helps you with steps 2 and 3.
 
+Please see the [briefcase documentation](https://briefcase.readthedocs.io/en/stable/how-to/code-signing/macOS.html) if you don't have a developer certificate yet.
+
 ## Usage
 
 <details><summary><b>If your bundle includes `.jar` files</b></summary>
@@ -84,8 +86,22 @@ app-pass check <path_to_app_bundle.app>
 app-pass fix --sh-output debug.sh <path_to_app_bundle.app>
 ```
 
-
 ## Complete usage example
+
+So far we've been working with the following `entitlements.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+</dict>
+</plist>
+```
 
 An example how we would sign our ilastik .app bundle:
 
