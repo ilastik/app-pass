@@ -50,7 +50,12 @@ class Jar(BinaryObj):
         if progress:
             progress.remove_task(task)
 
-        atexit.register(partial(shutil.rmtree, t, ignore_errors=True))
+        def _cleanup(t):
+            print(f"Cleaning up {t}")
+            shutil.rmtree(t, ignore_errors=True)
+
+        atexit.register(partial(_cleanup, t))
+
         return Jar(path=p, temp_path=Path(t), binaries=machos)
 
     @property
