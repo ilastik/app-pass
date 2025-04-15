@@ -11,10 +11,11 @@ class Command:
     run_python: bool = True
 
     def to_sh(self) -> list[str]:
-        cmds = [" ".join(self.args)]
+        args = [f'"{arg}"' for arg in self.args]
+        cmds = [" ".join(args)]
         if self.cwd:
-            cmds.insert(0, f"cd {self.cwd}")
-            cmds.append("cd -")
+            cmds.insert(0, f'"cd" "{self.cwd}"')
+            cmds.append('"cd" "-"')
 
         if self.comment:
             # fix multi-line comments - who knows
