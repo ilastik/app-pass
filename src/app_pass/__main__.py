@@ -151,19 +151,25 @@ def main():
 
     commands: list[Command] = []
     app = OSXAPP.from_path(args.app_bundle)
+    commands.extend(app.jar_extract)
     match args.action:
         case "check":
             # force dry_run to be true for now
             args.dry_run = True
-            commands = check(app)
+            commands.extend(check(app))
         case "fix":
-            commands = fix(app, args.rc_path_delete, args.force_update)
+            commands.extend(fix(app, args.rc_path_delete, args.force_update))
         case "sign":
-            commands = sign(app, args.entitlement_file, args.developer_id)
+            commands.extend(sign(app, args.entitlement_file, args.developer_id))
         case "fixsign":
-            commands = fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update)
+            commands.extend(fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update))
         case _:
             raise ValueError(f"Unexpected action {args.action}")
+
+
+    for jar in app.jars:
+        if jar.binaries:
+            commands.extend(app.jar_repack)
 
     if args.sh_output:
         serialize_to_sh(commands, args.sh_output)

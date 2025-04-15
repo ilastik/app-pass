@@ -51,8 +51,14 @@ class Jar(BinaryObj):
             progress.remove_task(task)
 
         atexit.register(partial(shutil.rmtree, t, ignore_errors=True))
+        return Jar(path=p, temp_path=Path(t), binaries=machos)
 
-        return Jar(p, Path(t), machos)
+    @property
+    def create_commands(self) -> list[Command]:
+        return [
+            Command(["mkdir", "-p", str(self.temp_path)], run_python=False),
+            Command(["ditto", "-x", "-k", str(self.path), str(self.temp_path)], run_python=False)
+        ]
 
     def sign(self, entitlement_file, developer_id) -> list[Command]:
         # nothing needs to be done if there aren't any binaries
@@ -65,8 +71,6 @@ class Jar(BinaryObj):
         for binary in self.binaries:
             sign_commands.append(sign_impl(entitlement_file, developer_id, binary.path))
 
-        sign_commands.extend(self.repack())
-        sign_commands.append(sign_impl(entitlement_file, developer_id, self.path))
         return sign_commands
 
     def repack(self) -> list[Command]:
