@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-
 @dataclass
 class Command:
     # One or multiple commands that can be executed in the shell

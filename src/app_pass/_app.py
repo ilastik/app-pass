@@ -294,7 +294,10 @@ def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary, rc_path_delete: bool
                 issues.append(
                     RcpathIssue(
                         fixable=True,
-                        details=f"DELETING rpath in {binary.path} pointing outside of binary and allowed system paths, this may indicate build issues {pth}.",
+                        details=(
+                            f"DELETING rpath in {binary.path} pointing outside of binary and allowed system paths, "
+                            f"this may indicate build issues {pth}."
+                        ),
                         fix=remove_rpath(binary.path, pth),
                     )
                 )
@@ -302,7 +305,11 @@ def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary, rc_path_delete: bool
                 issues.append(
                     RcpathIssue(
                         fixable=False,
-                        details=f"rpath in {binary.path} pointing outside of binary and allowed system paths, this may indicate build issues {pth}.",
+                        details=(
+                            f"rpath in {binary.path} pointing outside of binary and allowed system paths, "
+                            f"this may indicate build issues {pth}. You can force removal of such paths  "
+                            "with `--rc-path-delete`."
+                        )
                     )
                 )
 
