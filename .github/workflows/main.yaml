@@ -47,8 +47,8 @@ jobs:
 
   publish-to-pypi:
     name: Publish to pypi
-    runs-on: macos-latest
-    if: startsWith(github.ref, 'refs/tags/v*')
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: publish
       url: https://pypi.org/p/app-pass
