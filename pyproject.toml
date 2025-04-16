@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "app_pass"
-version = "0.1.0dev1"
+version = "0.1.0"
 authors = [
   {name = "Dominik Kutra", email = "dominik.kutra@embl.de"}
 ]
