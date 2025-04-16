@@ -34,9 +34,8 @@ Any `app-pass` command invoked with `--dry-run` will not make any changes to you
 ## Installation
 
 ```
-pip install git+https://github.com/k-dominik/app-pass.git
+pip install git+https://github.com/ilastik/app-pass.git
 ```
-
 
 ## Fix/Sign/Notarize workflow
 
@@ -85,6 +84,21 @@ app-pass check <path_to_app_bundle.app>
 ```bash
 app-pass fix --sh-output debug.sh <path_to_app_bundle.app>
 ```
+
+### Sign
+
+```bash
+app-pass fix --sh-output debug.sh <path_to_app_bundle.app> \
+    <path/to/entitlements.plist> \
+    <"Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>">
+```
+
+### `--dry-run` and `--sh-output`
+
+`app-pass` is built to make it easy for you to audit changes to your app.
+Invoking `app-pass` with `--dry-run` and `--sh-output <output-script.sh>` will not do any changes to your app.
+Instead, it will generate a shell script containing all the commands using standard Apple developer tools that would be executed to modify your app.
+
 
 ## Complete usage example
 
@@ -151,6 +165,41 @@ xcrun stapler staple ilastik-1.4.1rc3-arm64-OSX.app
 ## Good reading material on the topic of signing/notarizing
 
 * [Fun read on signing/notarization in general](https://blog.glyph.im/2023/03/py-mac-app-for-real.html), also the author of [encrust](https://github.com/glyph/Encrust)
-* [Good overview of signing process, how to get certificates via briefcase](https://briefcase.readthedocs.io/en/stable/how-to/code-signing/macOS.html). Also probably a good option to develop your app from the start to ease with signing/notarizing.
+* [Good overview of signing process, how to get certificates](https://briefcase.readthedocs.io/en/stable/how-to/code-signing/macOS.html) (briefcase documentation). Also probably a good option to develop your app from the start to ease with signing/notarizing.
 * [Apple TN2206: macOS Code Signing In Depth](https://developer.apple.com/library/archive/technotes/tn2206/_index.html)
 * [Apple docs on notarizing from the terminal](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)
+
+
+## What kind of issues does this package fix?
+
+This package mostly manipulates the load commands of your Mach-O binaries using standard Apple developer tools such as `install_name_tool`, and `vtool`.
+To look at any of these load commands `otool -l <dylib-path>` is your friend.
+
+### Build versions and platform ('LC_BUILD_VERSION')
+
+Notarization requires `platform`, `minos`, and `sdk` versions to be set.
+In older binaries these can be partly missing.
+
+Another requirement is that `sdk` version is newer or equal to `10.9`.
+There is the `--force-update` flag that will at least result in a app passing notarization.
+We're still investigating if there's any downsides to this (for executables we found that they will not run, but libraries might work).
+
+### Dynamic library search paths (`LC_RPATH`)
+
+These paths may not point outside the `.app` folder for notarization to be successful (except for `/System/`, `/usr/`, `/Library/`).
+`app-pass` tries do something sensible if these paths are absolute but point inside the app and replaces these with something relative to `@loader_path`, or `@executable_path`.
+
+Some libraries have rpaths pointing outside the app.
+Do these even exist on your machine?
+The ones we found so far were artifacts of the build process and wouldn't exist on our machines.
+The option `--rc-path-delete` will delete these rpaths from libraries.
+
+### Linked dynamic libraries (`LC_LOAD_DYLIB`, `LC_REEXPORT_DYLIB`)
+
+To pass notarization these paths may not be absolute, or point outside the app.
+`app-pass` will try to locate the libs within the .app and add a relative link.
+
+### Library ID (`LC_ID_DYLIB`)
+
+This has to be a relative path inside the app.
+Will be fixed to `@rpath/libname` if found otherwise.
