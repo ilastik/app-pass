@@ -175,7 +175,7 @@ xcrun stapler staple ilastik-1.4.1rc3-arm64-OSX.app
 This package mostly manipulates the load commands of your Mach-O binaries using standard Apple developer tools such as `install_name_tool`, and `vtool`.
 To look at any of these load commands `otool -l <dylib-path>` is your friend.
 
-### Build versions and platform ('LC_BUILD_VERSION')
+### Build versions and platform (`LC_BUILD_VERSION`)
 
 Notarization requires `platform`, `minos`, and `sdk` versions to be set.
 In older binaries these can be partly missing.
