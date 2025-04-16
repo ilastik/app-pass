@@ -14,9 +14,10 @@ Before you consider using this, you might get away without it by:
  * using [constructor](https://github.com/conda/constructor) if your stack is conda-based. Constructor does ad-hoc signing on install.
  * using something like [briefcase](https://github.com/beeware/briefcase).
  * [encrust](https://github.com/glyph/Encrust) seems also to work.
+ * [jaunch](https://github.com/apposed/jaunch).
 
 #### Your app is Java-based
- * ???
+ * Consider using [jaunch](https://github.com/apposed/jaunch), which powers Fiji.
 
 In any case, there are many reasons you can't use one of these alternatives and are left with a working .app that you can not sign.
 `app-pass` can help you no matter how you generated the app in the first place.
@@ -50,7 +51,7 @@ In general the workflow is roughly in these stages:
 
 `app-pass` helps you with steps 2 and 3.
 
-Please see the [briefcase documentation](https://briefcase.readthedocs.io/en/stable/how-to/code-signing/macOS.html) if you don't have a developer certificate yet.
+For the process of acquiring the required signing certificate and app password, please see the [jaunch documentation](https://github.com/apposed/jaunch/blob/main/doc/MACOS.md#how-to-sign-your-applications-jaunch-launcher).
 
 ## Usage
 
