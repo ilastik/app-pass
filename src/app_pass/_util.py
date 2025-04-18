@@ -50,7 +50,7 @@ def run_logged(command: Command) -> str:
             output=out.stdout.decode("utf-8") if out.stdout else "",
         )
 
-    logger.info(f"Successful command {' '.join(command.args)}")
+    logger.debug(f"Successful command {' '.join(command.args)}")
 
     return out.stdout.decode("utf-8")
 

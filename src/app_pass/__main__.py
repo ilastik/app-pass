@@ -126,6 +126,7 @@ def fix(app: OSXAPP, rc_path_delete: bool = False, force_update: bool = False, n
 
 def sign(app: OSXAPP, entitlement_file: Path, developer_id: str) -> list[Command]:
     # For jars, we need to sign and repack before signing  all
+    assert entitlement_file.exists(), entitlement_file
     commands: list[Command] = []
     for jar in app.jars:
         commands.extend(jar.sign(entitlement_file, developer_id))
