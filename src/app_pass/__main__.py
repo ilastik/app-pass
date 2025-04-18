@@ -58,6 +58,7 @@ def parse_args() -> Namespace:
 
     common_args = ArgumentParser(add_help=False)
     common_args.add_argument("-v", "--verbose", action="count", default=0)
+    common_args.add_argument("--no-progress", action="store_true")
     common_args.add_argument("--sh-output", type=Path)
     common_args.add_argument("--dry-run", action="store_true")
     common_args.add_argument("app_bundle", type=Path)
@@ -155,7 +156,7 @@ def main():
     configure_logging(verbose=args.verbose)
 
     commands: list[Command] = []
-    app = OSXAPP.from_path(args.app_bundle)
+    app = OSXAPP.from_path(args.app_bundle, with_progress= not args.no_progress)
     commands.extend(app.jar_extract)
     match args.action:
         case "check":

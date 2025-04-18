@@ -1,9 +1,10 @@
 import enum
 import logging
 import pathlib
+import struct
 import subprocess
 from dataclasses import dataclass
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 
 from rich.progress import Progress
 
@@ -21,6 +22,19 @@ class BinaryType(enum.Enum):
 @dataclass
 class BinaryObj:
     path: pathlib.Path
+
+
+# kind of assuming little endian...
+MACHOMAGIC = (
+    0xFEEDFACF,
+    0xFEEDFACE,
+    0xBEBAFECA,
+    # okay whatever, doesn't hurt to check the other ordering, too
+    # false positives will be weeded out by `file` anyway
+    0xCFFAEDFE,
+    0xCEFAEDFE,
+    0xCAFEBABE,
+)
 
 
 def run_logged(command: Command) -> str:
@@ -58,33 +72,56 @@ def serialize_to_sh(commands: list[Command], sh_cmd_out: pathlib.Path):
 
 
 def is_binary(path: pathlib.Path) -> BinaryType:
+    if path.is_dir():
+        return BinaryType.NONE
+
     if path.suffix in (".a", ".o"):
         logger.debug(f"Ignoring .a, and .o files: {path}")
         return BinaryType.NONE
 
-    if path.suffix in (".py", ".txt", ".md", ".h", ".class", ".cpp", ".hpp", ".class"):
+    if path.suffix in (".py", ".pyc", ".txt", ".md", ".class", ".cpp", ".hpp", ".cxx", ".hxx", ".c", ".h", ".class"):
         return BinaryType.NONE
-    file_out = run_logged(Command(["file", str(path)])).lower()
-    if "mach-o" in file_out:
-        if "architectures" in file_out:
-            logger.warning(f"Multiple architectures in file {path}")
-        return BinaryType.MACHO
-    elif path.suffix in (".jar", ".sym") and ("java archive data (jar)" in file_out or "zip archive data" in file_out):
-        return BinaryType.JAR
+
+    if path.suffix in (".jar", ".sym"):
+        file_out = run_logged(Command(["file", str(path)])).lower()
+        if "java archive data (jar)" in file_out or "zip archive data" in file_out:
+            return BinaryType.JAR
+
+    with open(path, "rb") as f:
+        magic_bytes = f.read(4)
+
+    if len(magic_bytes) != 4:
+        return BinaryType.NONE
+
+    xx = struct.unpack("<I", magic_bytes)
+
+    if xx[0] in MACHOMAGIC:
+        file_out = run_logged(Command(["file", str(path)])).lower()
+        if "mach-o" in file_out:
+            if "architectures" in file_out:
+                logger.warning(f"Multiple architectures in file {path}")
+            return BinaryType.MACHO
 
     return BinaryType.NONE
 
 
 def iter_all_binaries(
     root: pathlib.Path,
-    progress: Progress,
+    progress: Optional[Progress],
 ) -> Iterator[Tuple[pathlib.Path, BinaryType]]:
     files = list(root.glob("**/*"))
-    task = progress.add_task("Scanning files", total=len(files))
+
+    task = None
+    if progress is not None:
+        task = progress.add_task("Scanning files", total=len(files))
     for f in files:
         binary_type = is_binary(f)
         if binary_type != BinaryType.NONE:
             yield f, binary_type
-        progress.advance(task, 1)
+        if progress is not None:
+            assert task is not None
+            progress.advance(task, 1)
 
-    progress.remove_task(task)
+    if progress is not None:
+        assert task is not None
+        progress.remove_task(task)
