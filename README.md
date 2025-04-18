@@ -65,7 +65,7 @@ To mitigate this, we recommend creating a ram-disk for temporary files:
 ```bash
 # creates a 2GB ramdisk at mountpoint /Volumes/ramdisk
 # ram://2097152 for 1GB, ram://1048576 for .5GB
-diskutil erasevolume hfsx 'RAM Disk' `hdiutil attach -nomount ram://4194304`
+diskutil erasevolume hfsx 'ramdisk' `hdiutil attach -nomount ram://4194304`
 ```
 
 You need to invoke all `app-pass` commands overriding then env variable `TMPDIR`, e.g. `TMPDIR=/Volumes/ramdisk app-pass fix ...`
