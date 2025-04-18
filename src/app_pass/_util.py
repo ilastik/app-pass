@@ -77,14 +77,21 @@ def is_binary(path: pathlib.Path) -> BinaryType:
 
 def iter_all_binaries(
     root: pathlib.Path,
-    progress: Progress,
+    progress: Optional[Progress],
 ) -> Iterator[Tuple[pathlib.Path, BinaryType]]:
     files = list(root.glob("**/*"))
-    task = progress.add_task("Scanning files", total=len(files))
+
+    task = None
+    if progress is not None:
+        task = progress.add_task("Scanning files", total=len(files))
     for f in files:
         binary_type = is_binary(f)
         if binary_type != BinaryType.NONE:
             yield f, binary_type
-        progress.advance(task, 1)
+        if progress is not None:
+            assert task is not None
+            progress.advance(task, 1)
 
-    progress.remove_task(task)
+    if progress is not None:
+        assert task is not None
+        progress.remove_task(task)

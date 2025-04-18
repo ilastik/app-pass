@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from dataclasses import dataclass
 from functools import cached_property
@@ -40,7 +41,7 @@ class OSXAPP:
     default_build: Build = Build(platform="macos", minos="10.10", sdk="10.10")
 
     @staticmethod
-    def from_path(root: Path) -> "OSXAPP":
+    def from_path(root: Path, with_progress=True) -> "OSXAPP":
         if not root.is_absolute():
             root = root.resolve()
         plist = root / "Contents" / "Info.plist"
@@ -59,7 +60,12 @@ class OSXAPP:
         macho_binaries: list[MachOBinary] = []
         jars: list[Jar] = []
 
-        with Progress() as progress:
+        if with_progress:
+            prog = Progress
+        else:
+            prog = contextlib.nullcontext
+
+        with prog() as progress:
             for f, bin_type in iter_all_binaries(root, progress):
                 if bin_type == BinaryType.MACHO:
                     macho_bin = parse_macho(f)
