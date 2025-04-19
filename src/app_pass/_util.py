@@ -3,6 +3,7 @@ import logging
 import pathlib
 import struct
 import subprocess
+import time
 from dataclasses import dataclass
 from typing import Iterator, Optional, Tuple
 
@@ -50,15 +51,34 @@ def run_logged(command: Command) -> str:
             output=out.stdout.decode("utf-8") if out.stdout else "",
         )
 
-    logger.info(f"Successful command {' '.join(command.args)}")
+    logger.debug(f"Successful command {' '.join(command.args)}")
 
     return out.stdout.decode("utf-8")
 
 
 def run_commands(commands: list[Command]):
+    last_backoff = object()
+
     for command in commands:
-        if command.run_python:
-            run_logged(command)
+        if not command.run_python:
+            continue
+
+        if command.retry_backoff:
+            backoff = [10, 30, last_backoff]
+        else:
+            backoff = [last_backoff]
+
+        for sleep_time in backoff:
+            try:
+                run_logged(command)
+            except subprocess.CalledProcessError:
+                pass
+                if sleep_time == last_backoff:
+                    raise
+                logger.info(f"Retrying... after {sleep_time}s")
+                time.sleep(sleep_time)
+            else:
+                break
 
 
 def serialize_to_sh(commands: list[Command], sh_cmd_out: pathlib.Path):

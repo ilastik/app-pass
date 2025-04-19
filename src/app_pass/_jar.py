@@ -62,7 +62,7 @@ class Jar(BinaryObj):
     def create_commands(self) -> list[Command]:
         return [
             Command(["mkdir", "-p", str(self.temp_path)], run_python=False),
-            Command(["ditto", "-x", "-k", str(self.path), str(self.temp_path)], run_python=False)
+            Command(["ditto", "-x", "-k", str(self.path), str(self.temp_path)], run_python=False),
         ]
 
     def sign(self, entitlement_file, developer_id) -> list[Command]:

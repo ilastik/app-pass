@@ -315,7 +315,7 @@ def check_rpaths_need_fix(app: OSXAPP, binary: MachOBinary, rc_path_delete: bool
                             f"rpath in {binary.path} pointing outside of binary and allowed system paths, "
                             f"this may indicate build issues {pth}. You can force removal of such paths  "
                             "with `--rc-path-delete`."
-                        )
+                        ),
                     )
                 )
 

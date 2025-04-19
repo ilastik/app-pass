@@ -361,4 +361,4 @@ def sign_impl(entitlement_file, developer_id, path) -> Command:
         str(path),
     ]
 
-    return Command(args=args)
+    return Command(args=args, retry_backoff=True)
