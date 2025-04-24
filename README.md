@@ -161,7 +161,11 @@ xcrun notarytool wait \
 xcrun stapler staple ilastik-1.4.1rc3-arm64-OSX.app
 
 # finally zip again for distribution
-/usr/bin/ditto -v -c -k --keepParent \
+# --noqtn --norsrc have been added as some builds resulted in .zip
+# archives that would not expand cleanly with Archive Utility
+# (AppleDouble files expanded for symlinks in the app bundle
+# which would prevent it from passing gatekeeper.)
+/usr/bin/ditto -v --noqtn --norsrc -c -k --keepParent \
     ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX.zip
 ```
 
