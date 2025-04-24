@@ -8,7 +8,7 @@ Originally to sign the bundle for [ilastik](https://ilastik.org).
 Prerequisite: You have built your app, and it runs on your own machine ;).
 Problem: You try to sign/notarize but get back many errors and are unsure how to resolve them.
 
-Before you consider using this, you might get away without it by:
+### Before you consider using `app-pass`, you might get away without it by:
 
 #### Doing everything via XCODE** :)
 
