@@ -1,5 +1,7 @@
 # app-pass
 
+[![main](https://github.com/ilastik/app-pass/actions/workflows/main.yaml/badge.svg)](https://github.com/ilastik/app-pass/actions/workflows/main.yaml)
+
 Tool to ensure an `.app` bundle pass the Gatekeeper on MacOS.
 Originally to sign the bundle for [ilastik](https://ilastik.org).
 
@@ -35,7 +37,7 @@ Any `app-pass` command invoked with `--dry-run` will not make any changes to you
 ## Installation
 
 ```
-pip install git+https://github.com/ilastik/app-pass.git
+pip install app-pass
 ```
 
 ## Fix/Sign/Notarize workflow
