@@ -72,7 +72,6 @@ def run_commands(commands: list[Command]):
             try:
                 run_logged(command)
             except subprocess.CalledProcessError:
-                pass
                 if sleep_time == last_backoff:
                     raise
                 logger.info(f"Retrying... after {sleep_time}s")
@@ -135,6 +134,8 @@ def iter_all_binaries(
     if progress is not None:
         task = progress.add_task("Scanning files", total=len(files))
     for f in files:
+        if f.is_symlink():
+            continue
         binary_type = is_binary(f)
         if binary_type != BinaryType.NONE:
             yield f, binary_type
