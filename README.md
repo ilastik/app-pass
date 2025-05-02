@@ -1,6 +1,7 @@
 # app-pass
 
 [![main](https://github.com/ilastik/app-pass/actions/workflows/main.yaml/badge.svg)](https://github.com/ilastik/app-pass/actions/workflows/main.yaml)
+[![Anaconda-Server Badge](https://anaconda.org/conda-forge/app-pass/badges/version.svg)](https://anaconda.org/conda-forge/app-pass)
 
 Tool to ensure an `.app` bundle pass the Gatekeeper on MacOS.
 Originally to sign the bundle for [ilastik](https://ilastik.org).
@@ -36,8 +37,16 @@ Any `app-pass` command invoked with `--dry-run` will not make any changes to you
 
 ## Installation
 
+You can find the package on pypi and conda:
+
 ```
 pip install app-pass
+```
+
+or
+
+```
+conda install -c conda-forge app-pass
 ```
 
 ## Fix/Sign/Notarize workflow
