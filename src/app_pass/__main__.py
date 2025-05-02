@@ -71,6 +71,12 @@ def parse_args() -> Namespace:
     sign_args.add_argument("entitlement_file", type=Path)
     sign_args.add_argument("developer_id", type=str)
 
+    notarize_args = ArgumentParser(add_help=False)
+    notarize_args.add_argument("keychain_profile", type=str)
+    notarize_args.add_argument("keychain", type=Path)
+    notarize_args.add_argument("apple_id_email", type=str)
+    notarize_args.add_argument("team_id", type=str)
+
     parser = ArgumentParser()
 
     subparsers = parser.add_subparsers(dest="action", help="action to perform on an .app bundle")
@@ -80,6 +86,8 @@ def parse_args() -> Namespace:
     sign = subparsers.add_parser("sign", parents=[common_args, sign_args])
 
     fixsign = subparsers.add_parser("fixsign", parents=[common_args, sign_args, fix_args])
+
+    notarize = subparsers.add_parser("notarize", parents=[common_args, notarize_args])
 
     return parser.parse_args()
 
@@ -152,24 +160,31 @@ def fixsign(
     return commands
 
 
+def notarize(app_path: Path, keychain_profile: str, keychain: Path, apple_id_email: str, team_id: str) -> list[Command]:
+    pass
+
 def main():
     args = parse_args()
     configure_logging(verbose=args.verbose)
 
     commands: list[Command] = []
-    app = OSXAPP.from_path(args.app_bundle, with_progress= not args.no_progress)
-    commands.extend(app.jar_extract)
     match args.action:
-        case "check":
-            # force dry_run to be true for now
-            args.dry_run = True
-            commands.extend(check(app))
-        case "fix":
-            commands.extend(fix(app, args.rc_path_delete, args.force_update))
-        case "sign":
-            commands.extend(sign(app, args.entitlement_file, args.developer_id))
-        case "fixsign":
-            commands.extend(fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update))
+        case ["check", "fix", "sign", "fixsign"]:
+            app = OSXAPP.from_path(args.app_bundle, with_progress= not args.no_progress)
+            commands.extend(app.jar_extract)
+            match args.action:
+                case "check":
+                    # force dry_run to be true for now
+                    args.dry_run = True
+                    commands.extend(check(app))
+                case "fix":
+                    commands.extend(fix(app, args.rc_path_delete, args.force_update))
+                case "sign":
+                    commands.extend(sign(app, args.entitlement_file, args.developer_id))
+                case "fixsign":
+                    commands.extend(fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update))
+        case "notarize":
+            commands.extend(notarize(args.app_bundle, args.keychain_profile, args.keychain, args.apple_id_email, args.team_id))
         case _:
             raise ValueError(f"Unexpected action {args.action}")
 
