@@ -60,7 +60,7 @@ In general the workflow is roughly in these stages:
 5) `.app` is stapled and compressed again for distribution.
 6) Optional, if you have a `.dmg` installer, you rebuild it with the signed app and notarize it as well. 
 
-`app-pass` helps you with steps 2 and 3.
+`app-pass` helps you with steps 2, 3 and 4.
 
 For the process of acquiring the required signing certificate and app password, please see the [jaunch documentation](https://github.com/apposed/jaunch/blob/main/doc/MACOS.md#how-to-sign-your-applications-jaunch-launcher).
 
@@ -145,15 +145,23 @@ app-pass check <path_to_app_bundle.app>
 ### Fix
 
 ```bash
-app-pass fix --sh-output debug.sh <path_to_app_bundle.app>
+app-pass fix -vv --sh-output debug.sh <path_to_app_bundle.app>
 ```
 
 ### Sign
 
 ```bash
-app-pass fix --sh-output debug.sh <path_to_app_bundle.app> \
+app-pass fix -vv --sh-output debug.sh <path_to_app_bundle.app> \
     <path/to/entitlements.plist> \
     <"Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>">
+```
+
+### Notarize
+
+```bash
+app-pass notarize -vv <path_to_app_bundle.app> \
+    <your-keychain-profile> <path-to-keychain> \
+    <email-address-of-dev-account@provider.ext> <your-team-id>
 ```
 
 ### `--dry-run` and `--sh-output`
