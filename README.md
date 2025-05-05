@@ -111,6 +111,37 @@ app-pass fix --sh-output debug.sh <path_to_app_bundle.app> \
 Invoking `app-pass` with `--dry-run` and `--sh-output <output-script.sh>` will not do any changes to your app.
 Instead, it will generate a shell script containing all the commands using standard Apple developer tools that would be executed to modify your app.
 
+An exception is the `notarize` subcommand, that currently does not support generating an `.sh` file.
+
+<details><summary>`notarize.sh` equivalent</summary>
+
+```bash
+# pack to get ready for notarization
+/usr/bin/ditto -v -c -k --keepParent \
+    myapp.app myapp-tosign.zip
+
+# send off to apple:
+xcrun notarytool submit \
+    --keychain-profile <your-keychain-profile> \
+    --keychain <path-to-keychain> \
+    --apple-id  <email-address-of-dev-account@provider.ext> \
+    --team-id <your-team-id> \
+    "myapp-tosign.zip"
+
+# wait for notarization is complete
+xcrun notarytool wait \
+    --keychain-profile <your-keychain-profile> \
+    --keychain <path-to-keychain> \
+    --apple-id  <email-address-of-dev-account@provider.ext> \
+    --team-id <your-team-id> \
+    <notarization-request-id>
+
+# once this is done, staple:
+xcrun stapler staple myapp.app
+```
+
+</details>
+
 
 ## Complete usage example
 
