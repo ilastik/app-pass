@@ -46,7 +46,7 @@ app-pass = "app_pass.__main__:main"
 
 [tool.black]
 line-length = 120
-target-version = ['py37']
+target-version = ['py310']
 include = '\.pyi?$'
 exclude = '''
 (
