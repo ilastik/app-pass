@@ -347,7 +347,7 @@ def fix_rpath(library_path, old_rpath, new_rpath) -> Command:
     return Command(args=args)
 
 
-def sign_impl(entitlement_file, developer_id, path) -> Command:
+def sign_impl(entitlement_file: Path, developer_id: str, path: Path) -> Command:
     args = [
         "/usr/bin/codesign",
         "--entitlements",
