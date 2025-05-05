@@ -73,6 +73,8 @@ def parse_args() -> Namespace:
     sign_args.add_argument("developer_id", type=str)
 
     notarize_args = ArgumentParser(add_help=False)
+    notarize_args.add_argument("-v", "--verbose", action="count", default=0)
+    notarize_args.add_argument("app_bundle", type=Path)
     notarize_args.add_argument("keychain_profile", type=str)
     notarize_args.add_argument("keychain", type=Path)
     notarize_args.add_argument("apple_id_email", type=str)
@@ -89,6 +91,14 @@ def parse_args() -> Namespace:
     fixsign = subparsers.add_parser("fixsign", parents=[common_args, sign_args, fix_args])
 
     notarize = subparsers.add_parser("notarize", parents=[common_args, notarize_args])
+    notarize = subparsers.add_parser(
+        "notarize",
+        parents=[notarize_args],
+        help=(
+            "Compress, submit, wait for notarization to complete and staple your app. "
+            "This command does not offer a .sh out file option. "
+        ),
+    )
 
     return parser.parse_args()
 
