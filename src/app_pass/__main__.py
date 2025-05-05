@@ -7,11 +7,12 @@ from typing import Sequence
 from rich.console import Console
 from rich.text import Text
 
-from app_pass._app import OSXAPP
-from app_pass._commands import Command
-from app_pass._issues import Issue
-from app_pass._macho import sign_impl
-from app_pass._util import run_commands, serialize_to_sh
+from ._app import OSXAPP
+from ._commands import Command
+from ._issues import Issue
+from ._macho import sign_impl
+from ._notarize import notarize_impl
+from ._util import run_commands, serialize_to_sh
 
 
 def configure_logging(verbose: int):
@@ -60,9 +61,9 @@ def parse_args() -> Namespace:
     common_args = ArgumentParser(add_help=False)
     common_args.add_argument("-v", "--verbose", action="count", default=0)
     common_args.add_argument("--no-progress", action="store_true")
-    common_args.add_argument("--sh-output", type=Path)
     common_args.add_argument("--dry-run", action="store_true")
     common_args.add_argument("app_bundle", type=Path)
+    common_args.add_argument("--sh-output", type=Path)
 
     fix_args = ArgumentParser(add_help=False)
     fix_args.add_argument("--rc-path-delete", action="store_true")
@@ -82,15 +83,24 @@ def parse_args() -> Namespace:
 
     parser = ArgumentParser()
 
-    subparsers = parser.add_subparsers(dest="action", help="action to perform on an .app bundle")
-    check = subparsers.add_parser("check", parents=[common_args])
+    subparsers = parser.add_subparsers(dest="action", help="subcommand")
+    check = subparsers.add_parser("check", parents=[common_args], help="Same as fix with '--dry-run'")
 
-    fix = subparsers.add_parser("fix", parents=[common_args, fix_args])
-    sign = subparsers.add_parser("sign", parents=[common_args, sign_args])
+    fix = subparsers.add_parser(
+        "fix",
+        parents=[common_args, fix_args],
+        help="Fix common issues that prevent your .app bundle from being notarized.",
+    )
+    sign = subparsers.add_parser(
+        "sign",
+        parents=[common_args, sign_args],
+        help="Deep signing of binaries contained in your .app bundle (also within .jar archives) in a way that they will pass notarization/gatekeeper.",
+    )
 
-    fixsign = subparsers.add_parser("fixsign", parents=[common_args, sign_args, fix_args])
+    fixsign = subparsers.add_parser(
+        "fixsign", parents=[common_args, sign_args, fix_args], help="Do 'fix' and 'sign' in one go."
+    )
 
-    notarize = subparsers.add_parser("notarize", parents=[common_args, notarize_args])
     notarize = subparsers.add_parser(
         "notarize",
         parents=[notarize_args],
@@ -171,8 +181,10 @@ def fixsign(
     return commands
 
 
-def notarize(app_path: Path, keychain_profile: str, keychain: Path, apple_id_email: str, team_id: str) -> list[Command]:
-    pass
+def notarize(app_path: Path, keychain_profile: str, keychain: Path, apple_id_email: str, team_id: str) -> int:
+    success = notarize_impl(app_path, keychain_profile, keychain, apple_id_email, team_id)
+    return success
+
 
 def main():
     args = parse_args()
@@ -180,8 +192,10 @@ def main():
 
     commands: list[Command] = []
     match args.action:
-        case ["check", "fix", "sign", "fixsign"]:
-            app = OSXAPP.from_path(args.app_bundle, with_progress= not args.no_progress)
+        case "notarize":
+            return notarize(args.app_bundle, args.keychain_profile, args.keychain, args.apple_id_email, args.team_id)
+        case "check" | "fix" | "sign" | "fixsign":
+            app = OSXAPP.from_path(args.app_bundle, with_progress=not args.no_progress)
             commands.extend(app.jar_extract)
             match args.action:
                 case "check":
@@ -193,9 +207,9 @@ def main():
                 case "sign":
                     commands.extend(sign(app, args.entitlement_file, args.developer_id))
                 case "fixsign":
-                    commands.extend(fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update))
-        case "notarize":
-            commands.extend(notarize(args.app_bundle, args.keychain_profile, args.keychain, args.apple_id_email, args.team_id))
+                    commands.extend(
+                        fixsign(app, args.entitlement_file, args.developer_id, args.rc_path_delete, args.force_update)
+                    )
         case _:
             raise ValueError(f"Unexpected action {args.action}")
 
