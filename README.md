@@ -64,7 +64,58 @@ In general the workflow is roughly in these stages:
 
 For the process of acquiring the required signing certificate and app password, please see the [jaunch documentation](https://github.com/apposed/jaunch/blob/main/doc/MACOS.md#how-to-sign-your-applications-jaunch-launcher).
 
-## Usage
+
+## Complete usage example
+
+So far we've been working with the following `entitlements.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+</dict>
+</plist>
+```
+
+An example how we would sign our ilastik .app bundle:
+
+```bash
+# unzip unsigned app bundle after build
+ditto -x -k ~/Downloads/ilastik-1.4.1rc3-arm64-OSX-unsigned.zip .
+# this creates the bundle folder ilastik-1.4.1rc3-arm64-OSX.app that we will be
+# working with
+
+# fix and sign contents - for ilastik, we decide to remove rpaths that point
+# outside the bundle so we add --rc-path-delete
+app-pass fixsign -vv \
+    --sh-output "ilastik-1.4.1rc3-arm64-OSX-sign.sh" \
+    --rc-path-delete \
+    ilastik-1.4.1rc3-arm64-OSX.app \
+    entitlements.plist \
+    "Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>"
+
+app-pass notarize -vv \
+    ilastik-1.4.1rc3-arm64-OSX.app \
+    notarytool-password \
+    /Users/kutra/Library/Keychains/login.keychain-db \
+    "<email-address-of-dev-account@provider.ext>" \
+    <your-team-id> \
+
+# finally zip again for distribution
+# --noqtn --norsrc have been added as some builds resulted in .zip
+# archives that would not expand cleanly with Archive Utility
+# (AppleDouble files expanded for symlinks in the app bundle
+# which would prevent it from passing gatekeeper.)
+/usr/bin/ditto -v --noqtn --norsrc -c -k --keepParent \
+    ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX.zip
+```
+
+## Sub-commands
 
 <details><summary><b>If your bundle includes `.jar` files</b></summary>
 
@@ -142,56 +193,6 @@ xcrun stapler staple myapp.app
 
 </details>
 
-
-## Complete usage example
-
-So far we've been working with the following `entitlements.plist`:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-    <true/>
-    <key>com.apple.security.cs.allow-jit</key>
-    <true/>
-</dict>
-</plist>
-```
-
-An example how we would sign our ilastik .app bundle:
-
-```bash
-# unzip unsigned app bundle after build
-ditto -x -k ~/Downloads/ilastik-1.4.1rc3-arm64-OSX-unsigned.zip .
-# this creates the bundle folder ilastik-1.4.1rc3-arm64-OSX.app that we will be
-# working with
-
-# fix and sign contents - for ilastik, we decide to remove rpaths that point
-# outside the bundle so we add --rc-path-delete
-app-pass fixsign -vv \
-    --sh-output "ilastik-1.4.1rc3-arm64-OSX-sign.sh" \
-    --rc-path-delete \
-    ilastik-1.4.1rc3-arm64-OSX.app \
-    entitlements.plist \
-    "Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>"
-
-app-pass notarize -vv \
-    ilastik-1.4.1rc3-arm64-OSX.app \
-    notarytool-password \
-    /Users/kutra/Library/Keychains/login.keychain-db \
-    "<email-address-of-dev-account@provider.ext>" \
-    <your-team-id> \
-
-# finally zip again for distribution
-# --noqtn --norsrc have been added as some builds resulted in .zip
-# archives that would not expand cleanly with Archive Utility
-# (AppleDouble files expanded for symlinks in the app bundle
-# which would prevent it from passing gatekeeper.)
-/usr/bin/ditto -v --noqtn --norsrc -c -k --keepParent \
-    ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX.zip
-```
 
 ## Good reading material on the topic of signing/notarizing
 
