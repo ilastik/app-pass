@@ -139,35 +139,19 @@ ditto -x -k ~/Downloads/ilastik-1.4.1rc3-arm64-OSX-unsigned.zip .
 
 # fix and sign contents - for ilastik, we decide to remove rpaths that point
 # outside the bundle so we add --rc-path-delete
-app-pass fixsign \
+app-pass fixsign -vv \
     --sh-output "ilastik-1.4.1rc3-arm64-OSX-sign.sh" \
     --rc-path-delete \
     ilastik-1.4.1rc3-arm64-OSX.app \
     entitlements.plist \
     "Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>"
 
-# pack again to get ready for notarization
-/usr/bin/ditto -v -c -k --keepParent \
-    ilastik-1.4.1rc3-arm64-OSX.app ilastik-1.4.1rc3-arm64-OSX-tosign.zip
-
-# send off to apple:
-xcrun notarytool submit \
-    --keychain-profile <your-keychain-profile> \
-    --keychain <path-to-keychain> \
-    --apple-id  <email-address-of-dev-account@provider.ext> \
-    --team-id <your-team-id> \
-    "ilastik-1.4.1rc3-arm64-OSX-tosign.zip"
-
-# wait for notarization is complete
-xcrun notarytool wait \
-    --keychain-profile <your-keychain-profile> \
-    --keychain <path-to-keychain> \
-    --apple-id  <email-address-of-dev-account@provider.ext> \
-    --team-id <your-team-id> \
-    <notarization-request-id>
-
-# once this is done, staple:
-xcrun stapler staple ilastik-1.4.1rc3-arm64-OSX.app
+app-pass notarize -vv \
+    ilastik-1.4.1rc3-arm64-OSX.app \
+    notarytool-password \
+    /Users/kutra/Library/Keychains/login.keychain-db \
+    "<email-address-of-dev-account@provider.ext>" \
+    <your-team-id> \
 
 # finally zip again for distribution
 # --noqtn --norsrc have been added as some builds resulted in .zip
