@@ -3,7 +3,7 @@
 [![main](https://github.com/ilastik/app-pass/actions/workflows/main.yaml/badge.svg)](https://github.com/ilastik/app-pass/actions/workflows/main.yaml)
 [![Anaconda-Server Badge](https://anaconda.org/conda-forge/app-pass/badges/version.svg)](https://anaconda.org/conda-forge/app-pass)
 
-Tool to ensure an `.app` bundle pass the Gatekeeper on MacOS.
+Tool to ensure an `.app` bundle **pass notarization**, and Gatekeeper on MacOS.
 Originally to sign the bundle for [ilastik](https://ilastik.org).
 
 Prerequisite: You have built your app, and it runs on your own machine ;).
