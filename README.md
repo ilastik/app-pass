@@ -151,7 +151,7 @@ app-pass fix -vv --sh-output debug.sh <path_to_app_bundle.app>
 ### Sign
 
 ```bash
-app-pass fix -vv --sh-output debug.sh <path_to_app_bundle.app> \
+app-pass sign -vv --sh-output debug.sh <path_to_app_bundle.app> \
     <path/to/entitlements.plist> \
     <"Developer ID Application: <YOUR DEVELOPER APPLICATION INFO>">
 ```
