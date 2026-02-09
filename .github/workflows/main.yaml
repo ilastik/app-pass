@@ -11,11 +11,15 @@ on:
 jobs:
   test:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python_version: ["3.10", "3.12", "3.14"]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
-            python-version: '3.10'
+            python-version: ${{ matrix.python_version }}
       - name: install in editable mode
         run: pip install -e '.[test]'
       - name: pytest
@@ -30,7 +34,7 @@ jobs:
 
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.10"
+          python-version: "3.14"
 
       - name: Install pypa/build
         run: python -m pip install build --user
