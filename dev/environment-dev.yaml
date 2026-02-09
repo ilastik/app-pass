@@ -2,7 +2,7 @@ name: app_pass
 channels:
   - conda-forge
 dependencies:
-  - python 3.10
+  - python 3.13
   - pre_commit
   - pytest
   - rich
