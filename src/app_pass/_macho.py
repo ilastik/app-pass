@@ -88,7 +88,7 @@ class MachOHeader:
         return MachOHeader(vals[0], FILETYPE.from_hex_str(vals[4]))
 
 
-@dataclass
+@dataclass(frozen=True)
 class Build:
     platform: str
     minos: str
