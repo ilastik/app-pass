@@ -116,8 +116,7 @@ def notarize_impl(app_path: Path, keychain_profile: str, keychain: Path, apple_i
     timeout = time.perf_counter() + OVERALL_TIMEOUT
 
     status = "NEVER CHECKED"
-    while timeout > time.perf_counter():
-
+    while within_time_limit := (timeout >= time.perf_counter()):
         status = check(submission_id, keychain_profile, keychain, apple_id_email, team_id)
         LOGGER.info(f"Submission status {status} for {submission_id}")
         if status == "accepted":
@@ -125,10 +124,9 @@ def notarize_impl(app_path: Path, keychain_profile: str, keychain: Path, apple_i
         time.sleep(SLEEP_S)
 
     LOGGER.info(f"Notarization finished with {status=}")
-    if status == "accepted":
+    if within_time_limit and status == "accepted":
         staple(app_path)
-
-    if status == "accepted":
         return 0
     else:
+        LOGGER.info(f"Notarization incomplete with {within_time_limit=} and {status=}")
         return -1
