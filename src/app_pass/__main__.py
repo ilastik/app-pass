@@ -80,6 +80,7 @@ def parse_args() -> Namespace:
     notarize_args.add_argument("keychain", type=Path)
     notarize_args.add_argument("apple_id_email", type=str)
     notarize_args.add_argument("team_id", type=str)
+    notarize_args.add_argument("-t", "--timeout-minutes", type=int, default=60)
 
     parser = ArgumentParser()
 
@@ -181,8 +182,8 @@ def fixsign(
     return commands
 
 
-def notarize(app_path: Path, keychain_profile: str, keychain: Path, apple_id_email: str, team_id: str) -> int:
-    success = notarize_impl(app_path, keychain_profile, keychain, apple_id_email, team_id)
+def notarize(app_path: Path, keychain_profile: str, keychain: Path, apple_id_email: str, team_id: str, timeout_minutes: int = 60) -> int:
+    success = notarize_impl(app_path, keychain_profile, keychain, apple_id_email, team_id, timeout_minutes)
     return success
 
 
@@ -193,7 +194,7 @@ def main():
     commands: list[Command] = []
     match args.action:
         case "notarize":
-            return notarize(args.app_bundle, args.keychain_profile, args.keychain, args.apple_id_email, args.team_id)
+            return notarize(args.app_bundle, args.keychain_profile, args.keychain, args.apple_id_email, args.team_id, args.timeout_minutes)
         case "check" | "fix" | "sign" | "fixsign":
             app = OSXAPP.from_path(args.app_bundle, with_progress=not args.no_progress)
             commands.extend(app.jar_extract)

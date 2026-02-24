@@ -78,7 +78,7 @@ def staple(app_bundle: Path):
     LOGGER.info(output)
 
 
-def notarize_impl(app_path: Path, keychain_profile: str, keychain: Path, apple_id_email: str, team_id: str) -> int:
+def notarize_impl(app_path: Path, keychain_profile: str, keychain: Path, apple_id_email: str, team_id: str, timeout_minutes: int) -> int:
     """Notarize an .app bundle with given credentials, wait for completion and staple
 
     This is equivalent to doing the following steps manually:
@@ -111,7 +111,7 @@ def notarize_impl(app_path: Path, keychain_profile: str, keychain: Path, apple_i
     tosign_zip = compress(app_path)
     submission_id = submit(tosign_zip, keychain_profile, keychain, apple_id_email, team_id)
 
-    OVERALL_TIMEOUT = 40 * 60
+    OVERALL_TIMEOUT = timeout_minutes * 60
     SLEEP_S = 60
     timeout = time.perf_counter() + OVERALL_TIMEOUT
 
