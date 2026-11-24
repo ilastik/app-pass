@@ -78,6 +78,8 @@ So far we've been working with the following `entitlements.plist`:
     <true/>
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
 </dict>
 </plist>
 ```
